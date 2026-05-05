@@ -15,6 +15,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { FALLBACK_IMG } from "@/components/ui/product-image";
+import { useSafeImageSrc } from "@/hooks/useSafeImageSrc";
+
+function ProductDetailImage({ src, alt, className }) {
+  const safeSrc = useSafeImageSrc(src);
+  if (!safeSrc) return <div className={`${className} bg-gray-200 animate-pulse rounded-lg`} />;
+  return <img src={safeSrc} alt={alt} className={className} loading="lazy" />;
+}
 
 export default function ProductDetails() {
   const navigate = useNavigate();
@@ -343,13 +351,10 @@ export default function ProductDetails() {
       <div className="grid md:grid-cols-2 gap-8">
         {/* Product Image */}
         <div className="relative">
-          <img
-            src={product.image_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=500"}
+          <ProductDetailImage
+            src={product.image_url}
             alt={product.name}
             className="w-full h-96 object-cover rounded-lg shadow-lg"
-            onError={(e) => {
-              e.target.src = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=500";
-            }}
           />
           {discountPercentage > 0 && (
             <Badge className="absolute top-4 left-4 bg-red-500 hover:bg-red-600">

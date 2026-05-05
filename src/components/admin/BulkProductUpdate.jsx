@@ -94,12 +94,24 @@ export default function BulkProductUpdate() {
       if (updateData.delivery_charge) updates.delivery_charge = parseFloat(updateData.delivery_charge);
       if (updateData.delivery_time) updates.delivery_time = updateData.delivery_time;
       
-      // Fix: Properly save available_from and available_to times
+      // Fix: Convert HH:MM (24hr from time input) → "HH:MM AM/PM" format
+      // The shop availability check expects 12-hour format with AM/PM
+      const convertTo12Hour = (time24) => {
+        if (!time24) return "";
+        // Already in 12-hour format — pass through
+        if (/AM|PM/i.test(time24)) return time24;
+        const [h, m] = time24.split(":").map(Number);
+        if (isNaN(h) || isNaN(m)) return time24;
+        const period = h >= 12 ? "PM" : "AM";
+        const hour12 = h % 12 || 12;
+        return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+      };
+
       if (updateData.available_from) {
-        updates.available_from = updateData.available_from; // Format: "HH:MM"
+        updates.available_from = convertTo12Hour(updateData.available_from);
       }
       if (updateData.available_to) {
-        updates.available_to = updateData.available_to; // Format: "HH:MM"
+        updates.available_to = convertTo12Hour(updateData.available_to);
       }
       
       if (updateData.is_available !== "") updates.is_available = updateData.is_available === "true";
@@ -357,20 +369,40 @@ export default function BulkProductUpdate() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Available From (HH:MM)</Label>
+                <Label>Available From</Label>
                 <Input
                   type="time"
                   value={updateData.available_from}
                   onChange={(e) => setUpdateData({...updateData, available_from: e.target.value})}
                 />
+                {updateData.available_from && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    Will save as: {(() => {
+                      const [h, m] = updateData.available_from.split(":").map(Number);
+                      if (isNaN(h)) return updateData.available_from;
+                      const p = h >= 12 ? "PM" : "AM";
+                      return `${h % 12 || 12}:${String(m).padStart(2,"0")} ${p}`;
+                    })()}
+                  </p>
+                )}
               </div>
               <div>
-                <Label>Available To (HH:MM)</Label>
+                <Label>Available To</Label>
                 <Input
                   type="time"
                   value={updateData.available_to}
                   onChange={(e) => setUpdateData({...updateData, available_to: e.target.value})}
                 />
+                {updateData.available_to && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    Will save as: {(() => {
+                      const [h, m] = updateData.available_to.split(":").map(Number);
+                      if (isNaN(h)) return updateData.available_to;
+                      const p = h >= 12 ? "PM" : "AM";
+                      return `${h % 12 || 12}:${String(m).padStart(2,"0")} ${p}`;
+                    })()}
+                  </p>
+                )}
               </div>
             </div>
 

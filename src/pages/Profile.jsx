@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Award, Star, TrendingUp, Gift, History, Trophy, Package, MapPin, Heart, User as UserIcon, Edit2, Plus, Trash2, Building2, Camera } from "lucide-react";
+import { Award, Star, TrendingUp, Gift, History, Trophy, Package, MapPin, Heart, User as UserIcon, Edit2, Plus, Trash2, Building2, Camera, Crown } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -30,6 +30,7 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalEarned, setTotalEarned] = useState(0);
   const [totalRedeemed, setTotalRedeemed] = useState(0);
+  const [isPremium, setIsPremium] = useState(false);
   const [showAddressDialog, setShowAddressDialog] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [addressForm, setAddressForm] = useState({
@@ -97,6 +98,11 @@ export default function Profile() {
         5
       );
       setRecentOrders(orders);
+
+      // Check premium subscription
+      const now = new Date();
+      const subs = await base44.entities.Subscription.filter({ user_id: currentUser.id, status: 'active' }).catch(() => []);
+      setIsPremium(subs.some(s => !s.end_date || new Date(s.end_date) > now));
 
       // Load wishlist
       const wishlist = await base44.entities.Wishlist.filter(
@@ -342,7 +348,14 @@ export default function Profile() {
                 )}
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl font-bold">{user?.full_name || 'User'}</h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-2xl font-bold">{user?.full_name || 'User'}</h1>
+                  {isPremium && (
+                    <span className="inline-flex items-center gap-1 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full">
+                      <Crown className="w-3 h-3" />PREMIUM
+                    </span>
+                  )}
+                </div>
                 <p className="text-emerald-100">{user?.email}</p>
                 {user?.phone_number && (
                   <p className="text-emerald-100 text-sm">{user.phone_number}</p>

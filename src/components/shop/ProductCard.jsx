@@ -15,7 +15,6 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
   const [reviewCount, setReviewCount] = useState(0);
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
   
   const hostelStock = propHostelStock !== undefined ? propHostelStock : product.stock_quantity || 0;
   const displayPrice = product.price;
@@ -115,20 +114,10 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10" />
           
-          {/* Lazy Loading Placeholder */}
-          {!imageLoaded && (
-            <div className="w-full h-48 bg-gray-200 skeleton animate-pulse" />
-          )}
-          
           <ProductImage
             src={product.image_url}
             alt={product.name}
-            loading="lazy"
-            onLoad={() => setImageLoaded(true)}
-            className={`w-full h-48 object-cover group-hover:scale-110 transition-all duration-500 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
-            style={{ transition: 'opacity 200ms ease-in' }}
+            className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
           />
           {isOutOfStock && (
             <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-20">

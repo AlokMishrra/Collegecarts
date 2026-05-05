@@ -1,93 +1,42 @@
-import React, { useState, useEffect } from "react";
+import React, { memo } from "react";
 import { ChevronRight, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
-import { User } from "@/entities/User";
+import { FALLBACK_IMG } from "@/components/ui/product-image";
+import { useSafeImageSrc } from "@/hooks/useSafeImageSrc";
 
-export default function CategorySection({ category, products, onAddToCart, onUpdateQuantity, getCartQuantity, getHostelStock, isProductInStock }) {
-  const [user, setUser] = useState(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(false);
+// Sub-component so useSafeImageSrc hook can be called per product
+function ProductThumb({ src, alt }) {
+  const safeSrc = useSafeImageSrc(src);
+  if (!safeSrc) {
+    // Still probing — show skeleton
+    return <div className="w-full h-32 bg-gray-200 animate-pulse" />;
+  }
+  return (
+    <img
+      src={safeSrc}
+      alt={alt}
+      className="w-full h-32 object-cover"
+      loading="lazy"
+    />
+  );
+}
 
-  useEffect(() => {
-    let mounted = true;
+// memo — prevents re-render when parent re-renders with same props
+const CategorySection = memo(function CategorySection({
+  category, products,
+  onAddToCart, onUpdateQuantity, getCartQuantity,
+  getHostelStock, isProductInStock,
+}) {
 
-    const loadUser = async () => {
-      if (isLoadingUser) return;
-      
-      setIsLoadingUser(true);
-      try {
-        const currentUser = await User.me();
-        if (mounted) {
-          setUser(currentUser);
-        }
-      } catch (error) {
-        if (mounted) {
-          setUser(null);
-        }
-      } finally {
-        if (mounted) {
-          setIsLoadingUser(false);
-        }
-      }
-    };
-
-    loadUser();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
+  // getHostelStock and isProductInStock are always passed from Shop.jsx
+  // which has the user context. These fallbacks are only for safety.
   const checkProductInStock = isProductInStock || ((product) => {
-    if (!product.available_from || !product.available_to) {
-      const stock = getHostelStock ? getHostelStock(product) : (product.stock_quantity || 0);
-      return stock > 0;
-    }
-    
-    try {
-      const now = new Date();
-      const currentTime = now.getHours() * 60 + now.getMinutes();
-      
-      const parseTime12Hour = (timeStr) => {
-        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-        if (!match) return null;
-        
-        let hours = parseInt(match[1], 10);
-        const minutes = parseInt(match[2], 10);
-        const period = match[3].toUpperCase();
-        
-        if (period === 'PM' && hours !== 12) hours += 12;
-        if (period === 'AM' && hours === 12) hours = 0;
-        
-        return hours * 60 + minutes;
-      };
-      
-      const fromTime = parseTime12Hour(product.available_from);
-      const toTime = parseTime12Hour(product.available_to);
-      
-      if (fromTime === null || toTime === null) {
-        const stock = getHostelStock ? getHostelStock(product) : (product.stock_quantity || 0);
-        return stock > 0;
-      }
-      
-      const isTimeAvailable = currentTime >= fromTime && currentTime <= toTime;
-      if (!isTimeAvailable) return false;
-      
-      const stock = getHostelStock ? getHostelStock(product) : (product.stock_quantity || 0);
-      return stock > 0;
-    } catch (error) {
-      return true;
-    }
+    return (product.stock_quantity || 0) > 0;
   });
 
   const getStock = getHostelStock || ((product) => {
-    if (!user?.selected_hostel || user.selected_hostel === 'Other') {
-      return product.stock_quantity || 0;
-    }
-    if (product.hostel_stock && typeof product.hostel_stock[user.selected_hostel] === 'number') {
-      return product.hostel_stock[user.selected_hostel];
-    }
     return product.stock_quantity || 0;
   });
   
@@ -143,15 +92,7 @@ export default function CategorySection({ category, products, onAddToCart, onUpd
                 <Link to={createPageUrl(`ProductDetails?id=${product.id}`)}>
                   <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer border border-gray-100 overflow-hidden">
                     <div className="relative">
-                      <img
-                        src={product.image_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=200"}
-                        alt={product.name}
-                        className="w-full h-32 object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.target.src = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=200";
-                        }}
-                      />
+                      <ProductThumb src={product.image_url} alt={product.name} />
                       {product.delivery_charge === 0 && (
                         <div className="absolute top-2 left-2 bg-emerald-500 text-white text-xs px-2 py-1 rounded-full">
                           Free Delivery
@@ -240,4 +181,6 @@ export default function CategorySection({ category, products, onAddToCart, onUpd
       </div>
     </div>
   );
-}
+});
+
+export default CategorySection;
