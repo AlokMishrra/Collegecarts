@@ -1,0 +1,492 @@
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { DeliveryPerson } from "@/entities/DeliveryPerson";
+import { User } from "@/entities/User";
+import { Plus, Edit, Trash2, User as UserIcon, Ban, CheckCircle, Wallet, RefreshCw, Clock, ArrowUpCircle, XCircle, Loader2, TrendingUp, Power } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DeliveryPersonForm from "./DeliveryPersonForm";
+import ShiftManagement from "./ShiftManagement";
+import HostelDailyReport from "./HostelDailyReport";
+import DeliveryQueryManagement from "./DeliveryQueryManagement";
+import ConfirmDialog from "../shared/ConfirmDialog";
+import { toast } from "sonner";
+
+export default function DeliveryPersonManagement() {
+  const [deliveryPersons, setDeliveryPersons] = useState([]);
+  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, person: null });
+  const [blockDialog, setBlockDialog] = useState({ open: false, person: null });
+  const [walletDialog, setWalletDialog] = useState({ open: false, person: null });
+  const [withdrawalRequests, setWithdrawalRequests] = useState([]);
+  const [walletTransactions, setWalletTransactions] = useState([]);
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustNote, setAdjustNote] = useState("");
+  const [isAdjusting, setIsAdjusting] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    loadDeliveryPersons();
+    loadWithdrawalRequests();
+    User.me().then(setUser).catch(() => {});
+  }, []);
+
+  const loadDeliveryPersons = async () => {
+    setIsLoading(true);
+    const data = await DeliveryPerson.list('-created_date').catch(() => []);
+    setDeliveryPersons(data);
+    setIsLoading(false);
+  };
+
+  const loadWithdrawalRequests = async () => {
+    const [withdrawals, deposits] = await Promise.all([
+      base44.entities.WithdrawalRequest.filter({ status: "pending", type: "withdrawal" }, '-created_date').catch(() => []),
+      base44.entities.WithdrawalRequest.filter({ status: "pending", type: "deposit" }, '-created_date').catch(() => [])
+    ]);
+    setWithdrawalRequests([...deposits, ...withdrawals]);
+  };
+
+  const openWalletDialog = async (person) => {
+    setWalletDialog({ open: true, person });
+    setAdjustAmount("");
+    setAdjustNote("");
+    const txns = await base44.entities.WalletTransaction.filter({ delivery_person_id: person.id }, '-created_date', 15).catch(() => []);
+    setWalletTransactions(txns);
+  };
+
+  const handleResetWallet = async () => {
+    const person = walletDialog.person;
+    if (!person) return;
+    setIsAdjusting(true);
+    const prevBalance = person.wallet_balance || 0;
+    await Promise.all([
+      base44.entities.DeliveryPerson.update(person.id, { wallet_balance: 0 }),
+      base44.entities.WalletTransaction.create({
+        delivery_person_id: person.id,
+        amount: -prevBalance,
+        type: "cash_submitted",
+        description: `Admin reset wallet (COD cash settled). Previous balance: ₹${prevBalance.toFixed(2)}`
+      })
+    ]);
+    const updated = { ...person, wallet_balance: 0 };
+    setWalletDialog({ open: true, person: updated });
+    setDeliveryPersons(prev => prev.map(p => p.id === person.id ? updated : p));
+    const txns = await base44.entities.WalletTransaction.filter({ delivery_person_id: person.id }, '-created_date', 15).catch(() => []);
+    setWalletTransactions(txns);
+    setIsAdjusting(false);
+    toast.success(`✅ Wallet reset to ₹0. COD cash of ₹${Math.abs(prevBalance).toFixed(2)} marked as submitted.`);
+  };
+
+  const handleManualAdjust = async (isCredit) => {
+    const amount = parseFloat(adjustAmount);
+    if (!amount || amount <= 0) return;
+    const person = walletDialog.person;
+    setIsAdjusting(true);
+    const delta = isCredit ? amount : -amount;
+    const newBalance = (person.wallet_balance || 0) + delta;
+    await Promise.all([
+      base44.entities.DeliveryPerson.update(person.id, { wallet_balance: newBalance }),
+      base44.entities.WalletTransaction.create({
+        delivery_person_id: person.id,
+        amount: delta,
+        type: isCredit ? "deposit" : "withdrawal",
+        description: adjustNote || (isCredit ? `Admin credit: ₹${amount}` : `Admin debit: ₹${amount}`)
+      })
+    ]);
+    const updated = { ...person, wallet_balance: newBalance };
+    setWalletDialog({ open: true, person: updated });
+    setDeliveryPersons(prev => prev.map(p => p.id === person.id ? updated : p));
+    setAdjustAmount("");
+    setAdjustNote("");
+    const txns = await base44.entities.WalletTransaction.filter({ delivery_person_id: person.id }, '-created_date', 15).catch(() => []);
+    setWalletTransactions(txns);
+    setIsAdjusting(false);
+    toast.success(`✅ ${isCredit ? 'Added' : 'Deducted'} ₹${amount.toFixed(2)}. New balance: ₹${newBalance.toFixed(2)}`);
+  };
+
+  const handleForceOffline = async (person) => {
+    await base44.entities.DeliveryPerson.update(person.id, { is_available: false, current_shift: null });
+    loadDeliveryPersons();
+  };
+
+  const handleApproveWithdrawal = async (req) => {
+    const isDeposit = req.type === "deposit";
+    const partner = deliveryPersons.find(p => p.id === req.delivery_person_id);
+
+    let partnerUpdate = {};
+    let txnAmount = 0;
+    let txnType = "";
+    let txnDesc = "";
+
+    if (isDeposit) {
+      // Deposit: add to wallet_balance
+      const newBalance = (partner?.wallet_balance || 0) + req.amount;
+      partnerUpdate = { wallet_balance: newBalance };
+      txnAmount = req.amount;
+      txnType = "deposit";
+      txnDesc = `Wallet top-up approved: ₹${req.amount} (Txn: ${req.transaction_id || "—"})`;
+    } else {
+      // Withdrawal: deduct from total_earnings ONLY — never touch wallet_balance
+      const currentEarnings = partner?.total_earnings || 0;
+      const newEarnings = Math.max(0, currentEarnings - req.amount);
+      partnerUpdate = { total_earnings: newEarnings };
+      txnAmount = -req.amount;
+      txnType = "withdrawal";
+      txnDesc = `Withdrawal approved: ₹${req.amount} to ${req.upi_id || "—"}`;
+    }
+
+    const notificationMessage = isDeposit
+      ? `Your wallet top-up of ₹${req.amount} has been approved. New wallet balance updated.`
+      : `Your withdrawal of ₹${req.amount} has been approved and will be sent to UPI ID: ${req.upi_id || "—"}.`;
+
+    await Promise.all([
+      base44.entities.WithdrawalRequest.update(req.id, { status: "approved", admin_notes: "Approved by admin" }),
+      base44.entities.DeliveryPerson.update(req.delivery_person_id, partnerUpdate),
+      base44.entities.WalletTransaction.create({
+        delivery_person_id: req.delivery_person_id,
+        amount: txnAmount,
+        type: txnType,
+        description: txnDesc
+      }),
+      base44.entities.Notification.create({
+        user_id: req.delivery_person_id,
+        title: isDeposit ? "✅ Wallet Top-up Approved" : "✅ Withdrawal Approved",
+        message: notificationMessage,
+        type: "success",
+        is_read: false
+      })
+    ]);
+    toast.success(`✅ ${isDeposit ? 'Deposit' : 'Withdrawal'} approved successfully!`);
+    loadWithdrawalRequests();
+    loadDeliveryPersons();
+  };
+
+  const handleRejectWithdrawal = async (req) => {
+    await base44.entities.WithdrawalRequest.update(req.id, { status: "rejected", admin_notes: "Rejected by admin" });
+    loadWithdrawalRequests();
+  };
+
+  const handleSavePerson = async (personData) => {
+    if (selectedPerson) {
+      await DeliveryPerson.update(selectedPerson.id, personData);
+    } else {
+      await DeliveryPerson.create(personData);
+    }
+    loadDeliveryPersons();
+    setIsFormOpen(false);
+    setSelectedPerson(null);
+  };
+
+  const handleDeletePerson = async () => {
+    if (!deleteDialog.person) return;
+    await DeliveryPerson.delete(deleteDialog.person.id);
+    loadDeliveryPersons();
+    setDeleteDialog({ open: false, person: null });
+  };
+
+  const toggleBlockStatus = async () => {
+    if (!blockDialog.person) return;
+    await DeliveryPerson.update(blockDialog.person.id, { is_blocked: !blockDialog.person.is_blocked });
+    loadDeliveryPersons();
+    setBlockDialog({ open: false, person: null });
+  };
+
+  const txTypeLabel = {
+    delivery_earning: "Commission", cod_collection: "COD Collected",
+    cash_submitted: "Cash Submitted", withdrawal: "Withdrawal",
+    deposit: "Deposit", incentive: "Incentive"
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Delivery Partners</h2>
+          <p className="text-gray-600">Manage your delivery team</p>
+        </div>
+        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { setSelectedPerson(null); setIsFormOpen(true); }}>
+          <Plus className="w-4 h-4 mr-2" />Add Delivery Person
+        </Button>
+      </div>
+
+      <Tabs defaultValue="partners">
+        <TabsList>
+          <TabsTrigger value="partners">Partners</TabsTrigger>
+          <TabsTrigger value="shifts"><Clock className="w-3.5 h-3.5 mr-1" />Shifts</TabsTrigger>
+          <TabsTrigger value="withdrawals">
+            Withdrawals
+            {withdrawalRequests.length > 0 && <Badge className="ml-1.5 bg-orange-500 text-white text-xs">{withdrawalRequests.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="report"><TrendingUp className="w-3.5 h-3.5 mr-1" />Daily Report</TabsTrigger>
+          <TabsTrigger value="queries">Support Queries</TabsTrigger>
+        </TabsList>
+
+        {/* Partners Tab */}
+        <TabsContent value="partners">
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Hostel</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Wallet</TableHead>
+                    <TableHead>Deliveries</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deliveryPersons.map(person => {
+                    const balance = person.wallet_balance || 0;
+                    const isNeg = balance < 0;
+                    return (
+                      <TableRow key={person.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                              <UserIcon className="w-4 h-4 text-emerald-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{person.name}</p>
+                              <p className="text-xs text-gray-500">{person.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{person.phone_number}</TableCell>
+                        <TableCell>
+                          <Badge className={person.assigned_hostel && person.assigned_hostel !== "All" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-500"}>
+                            {person.assigned_hostel || "All"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Badge className={person.is_available ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}>
+                              {person.is_available ? "Online" : "Offline"}
+                            </Badge>
+                            {person.is_blocked && <Badge className="bg-red-100 text-red-700">Blocked</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`font-semibold text-sm ${isNeg ? "text-red-600" : "text-emerald-600"}`}>
+                            {isNeg ? "-" : ""}₹{Math.abs(balance).toFixed(0)}
+                          </span>
+                          {isNeg && <p className="text-xs text-red-500">COD owed</p>}
+                        </TableCell>
+                        <TableCell>{person.total_deliveries || 0}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Button variant="outline" size="icon" title="Manage Wallet" onClick={() => openWalletDialog(person)} className="text-emerald-600 hover:text-emerald-700">
+                              <Wallet className="w-4 h-4" />
+                            </Button>
+                            <Button variant="outline" size="icon" onClick={() => { setSelectedPerson(person); setIsFormOpen(true); }}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            {person.is_available && (
+                              <Button variant="outline" size="icon" onClick={() => handleForceOffline(person)} title="Force Offline" className="text-orange-600">
+                                <Power className="w-4 h-4" />
+                              </Button>
+                            )}
+                             <Button variant="outline" size="icon" onClick={() => setBlockDialog({ open: true, person })}
+                              className={person.is_blocked ? "text-green-600" : "text-red-600"} title={person.is_blocked ? "Unblock" : "Block"}>
+                              {person.is_blocked ? <CheckCircle className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                            </Button>
+                            <Button variant="outline" size="icon" onClick={() => setDeleteDialog({ open: true, person })} className="text-red-600">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!isLoading && deliveryPersons.length === 0 && (
+                    <TableRow><TableCell colSpan={8} className="text-center text-gray-500 py-8">No delivery partners yet</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Shifts Tab */}
+        <TabsContent value="shifts">
+          <ShiftManagement />
+        </TabsContent>
+
+        {/* Withdrawal / Deposit Requests Tab */}
+        <TabsContent value="withdrawals">
+          <Card>
+            <CardContent className="p-0">
+              {withdrawalRequests.length === 0 ? (
+                <div className="text-center py-10 text-gray-500">No pending requests</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Partner</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>UPI ID</TableHead>
+                      <TableHead>Txn ID</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {withdrawalRequests.map(req => (
+                      <TableRow key={req.id}>
+                        <TableCell>
+                          <Badge className={req.type === "deposit" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}>
+                            {req.type === "deposit" ? "💰 Deposit" : "⬆ Withdrawal"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{req.delivery_person_name}</TableCell>
+                        <TableCell className="font-bold text-emerald-600">₹{req.amount?.toFixed(2)}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{req.upi_id || "—"}</TableCell>
+                        <TableCell className="text-sm text-blue-700 font-mono">{req.transaction_id || "—"}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{new Date(req.created_date).toLocaleDateString('en-IN')}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveWithdrawal(req)}>
+                              <CheckCircle className="w-3.5 h-3.5 mr-1" />Approve
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => handleRejectWithdrawal(req)}>
+                              <XCircle className="w-3.5 h-3.5 mr-1" />Reject
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Daily Report Tab */}
+        <TabsContent value="report">
+          <HostelDailyReport />
+        </TabsContent>
+
+        {/* Support Queries Tab */}
+        <TabsContent value="queries">
+          <DeliveryQueryManagement />
+        </TabsContent>
+      </Tabs>
+
+      {/* Add/Edit Form Dialog */}
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedPerson ? "Edit Delivery Person" : "Add New Delivery Person"}</DialogTitle>
+          </DialogHeader>
+          <DeliveryPersonForm person={selectedPerson} onSave={handleSavePerson} onCancel={() => { setIsFormOpen(false); setSelectedPerson(null); }} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Wallet Management Dialog */}
+      <Dialog open={walletDialog.open} onOpenChange={(o) => setWalletDialog(p => ({ ...p, open: o }))}>
+        <DialogContent className="w-[95vw] max-w-sm p-0 overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2">
+            <DialogTitle className="flex items-center gap-2 text-base"><Wallet className="w-4 h-4 text-emerald-600" />Wallet — {walletDialog.person?.name}</DialogTitle>
+          </DialogHeader>
+          {walletDialog.person && (() => {
+            const balance = walletDialog.person.wallet_balance || 0;
+            const isNeg = balance < 0;
+            return (
+              <div className="overflow-y-auto max-h-[75vh] px-4 pb-4 space-y-3">
+                {/* Balance Display */}
+                <div className={`rounded-xl p-3 text-center ${isNeg ? "bg-red-50 border-2 border-red-200" : "bg-emerald-50 border-2 border-emerald-200"}`}>
+                  <p className="text-xs text-gray-500">Current Balance</p>
+                  <p className={`text-2xl font-bold mt-1 ${isNeg ? "text-red-600" : "text-emerald-600"}`}>
+                    {isNeg ? "-" : ""}₹{Math.abs(balance).toFixed(2)}
+                  </p>
+                  {isNeg && <p className="text-xs text-red-500 mt-1">Partner owes this COD cash to store</p>}
+                </div>
+
+                {/* Reset Wallet (for COD settlements) */}
+                {isNeg && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-orange-800">Reset Wallet (COD Settled)</p>
+                      <p className="text-xs text-orange-600">Partner submitted ₹{Math.abs(balance).toFixed(2)} cash</p>
+                    </div>
+                    <Button size="sm" onClick={handleResetWallet} disabled={isAdjusting} className="bg-orange-600 hover:bg-orange-700 text-white flex-shrink-0 text-xs">
+                      {isAdjusting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><RefreshCw className="w-3 h-3 mr-1" />Reset to ₹0</>}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Manual Adjustment */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Manual Wallet Adjustment</Label>
+                  <Input type="number" placeholder="Amount (₹)" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} />
+                  <Input placeholder="Note (optional)" value={adjustNote} onChange={e => setAdjustNote(e.target.value)} />
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-xs" onClick={() => handleManualAdjust(true)} disabled={isAdjusting || !adjustAmount}>
+                      <ArrowUpCircle className="w-3.5 h-3.5 mr-1" />Add Credit
+                    </Button>
+                    <Button size="sm" variant="destructive" className="flex-1 text-xs" onClick={() => handleManualAdjust(false)} disabled={isAdjusting || !adjustAmount}>
+                      <XCircle className="w-3.5 h-3.5 mr-1" />Deduct
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Recent Transactions */}
+                {walletTransactions.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-2">Recent Transactions</p>
+                    <div className="divide-y border rounded-lg overflow-y-auto max-h-52">
+                      {walletTransactions.map((txn, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-700 break-words leading-tight">{txn.description}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{new Date(txn.created_date).toLocaleDateString('en-IN')}</p>
+                          </div>
+                          <span className={`text-sm font-bold whitespace-nowrap flex-shrink-0 ${txn.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            {txn.amount >= 0 ? "+" : ""}₹{Math.abs(txn.amount).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
+        title="Remove Delivery Person"
+        description={`Are you sure you want to remove "${deleteDialog.person?.name}"?`}
+        onConfirm={handleDeletePerson}
+        onCancel={() => setDeleteDialog({ open: false, person: null })}
+        confirmText="Remove" cancelText="Cancel"
+      />
+      <ConfirmDialog
+        open={blockDialog.open}
+        onOpenChange={(open) => setBlockDialog({ ...blockDialog, open })}
+        title={blockDialog.person?.is_blocked ? "Unblock Partner" : "Block Partner"}
+        description={blockDialog.person?.is_blocked
+          ? `Unblock "${blockDialog.person?.name}"? They can accept orders again.`
+          : `Block "${blockDialog.person?.name}"? They won't be able to accept orders.`}
+        onConfirm={toggleBlockStatus}
+        onCancel={() => setBlockDialog({ open: false, person: null })}
+        confirmText={blockDialog.person?.is_blocked ? "Unblock" : "Block"} cancelText="Cancel"
+      />
+    </div>
+  );
+}

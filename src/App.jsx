@@ -1,0 +1,191 @@
+import './App.css'
+import React, { lazy, Suspense } from 'react';
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+import VisualEditAgent from '@/lib/VisualEditAgent'
+import NavigationTracker from '@/lib/NavigationTracker'
+import { pagesConfig } from './pages.config'
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import PageNotFound from './lib/PageNotFound';
+import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
+import RequireAuth from './components/RequireAuth';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { DialogProvider } from '@/components/ui/alert-dialog-custom';
+import BottomTabBar from '@/components/layout/BottomTabBar';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import OfflineBanner from '@/components/shared/OfflineBanner';
+import AdminErrorPanel from '@/components/admin/AdminErrorPanel';
+
+// Lazy load heavy pages for better performance
+const Referral = lazy(() => import('./pages/Referral'));
+const CCA = lazy(() => import('./pages/CCA'));
+const Cart = lazy(() => import('./pages/Cart'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const Delivery = lazy(() => import('./pages/Delivery'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Wishlist = lazy(() => import('./pages/Wishlist'));
+
+// Policy & info pages (lightweight, no lazy needed)
+import ContactUs from './pages/ContactUs';
+import TermsConditions from './pages/TermsConditions';
+import RefundsCancellations from './pages/RefundsCancellations';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import AboutUs from './pages/AboutUs';
+
+// Loading skeleton component
+const PageLoadingSkeleton = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+  </div>
+);
+
+const { Pages, Layout, mainPage } = pagesConfig;
+const mainPageKey = mainPage ?? Object.keys(Pages)[0];
+const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+
+const LayoutWrapper = ({ children, currentPageName }) => Layout ?
+  <Layout currentPageName={currentPageName}>{children}</Layout>
+  : <>{children}</>;
+
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin } = useAuth();
+
+  // Show loading spinner while checking session
+  if (isLoadingPublicSettings || isLoadingAuth) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
+          <p className="text-sm text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle special auth errors
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
+  }
+
+  return (
+    <Routes>
+      {/* ── Public routes — no auth needed ── */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/Login" element={<Login />} />
+      <Route path="/ContactUs" element={<LayoutWrapper currentPageName="Contact Us"><ContactUs /></LayoutWrapper>} />
+      <Route path="/contact" element={<LayoutWrapper currentPageName="Contact Us"><ContactUs /></LayoutWrapper>} />
+      <Route path="/TermsConditions" element={<LayoutWrapper currentPageName="Terms & Conditions"><TermsConditions /></LayoutWrapper>} />
+      <Route path="/terms" element={<LayoutWrapper currentPageName="Terms & Conditions"><TermsConditions /></LayoutWrapper>} />
+      <Route path="/RefundsCancellations" element={<LayoutWrapper currentPageName="Refunds & Cancellations"><RefundsCancellations /></LayoutWrapper>} />
+      <Route path="/refunds" element={<LayoutWrapper currentPageName="Refunds & Cancellations"><RefundsCancellations /></LayoutWrapper>} />
+      <Route path="/PrivacyPolicy" element={<LayoutWrapper currentPageName="Privacy Policy"><PrivacyPolicy /></LayoutWrapper>} />
+      <Route path="/privacy" element={<LayoutWrapper currentPageName="Privacy Policy"><PrivacyPolicy /></LayoutWrapper>} />
+      <Route path="/AboutUs" element={<LayoutWrapper currentPageName="About Us"><AboutUs /></LayoutWrapper>} />
+      <Route path="/about" element={<LayoutWrapper currentPageName="About Us"><AboutUs /></LayoutWrapper>} />
+
+      {/* ── Root — redirect to /Shop (RequireAuth handles login redirect) ── */}
+      <Route path="/" element={
+        <RequireAuth>
+          <LayoutWrapper currentPageName={mainPageKey}>
+            <MainPage />
+          </LayoutWrapper>
+        </RequireAuth>
+      } />
+
+      {/* ── All app pages — require login ── */}
+      {Object.entries(Pages).map(([path, Page]) => {
+        const isLazyPage = ['Cart', 'UserManagement', 'Delivery', 'Subscription', 'Wishlist'].includes(path);
+        return (
+          <Route
+            key={path}
+            path={`/${path}`}
+            element={
+              <RequireAuth>
+                <LayoutWrapper currentPageName={path}>
+                  {isLazyPage ? (
+                    <Suspense fallback={<PageLoadingSkeleton />}>
+                      <Page />
+                    </Suspense>
+                  ) : (
+                    <Page />
+                  )}
+                </LayoutWrapper>
+              </RequireAuth>
+            }
+          />
+        );
+      })}
+
+      {/* ── Referral ── */}
+      <Route path="/Referral" element={
+        <RequireAuth>
+          <LayoutWrapper currentPageName="Referral">
+            <Suspense fallback={<PageLoadingSkeleton />}>
+              <Referral />
+            </Suspense>
+          </LayoutWrapper>
+        </RequireAuth>
+      } />
+
+      {/* ── Admin-only routes ── */}
+      <Route path="/CCA" element={
+        <ProtectedRoute requiredRole="admin">
+          <LayoutWrapper currentPageName="CCA">
+            <Suspense fallback={<PageLoadingSkeleton />}>
+              <CCA />
+            </Suspense>
+          </LayoutWrapper>
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/errors" element={
+        <ProtectedRoute requiredRole="admin">
+          <LayoutWrapper currentPageName="AdminErrors">
+            <Suspense fallback={<PageLoadingSkeleton />}>
+              <AdminErrorPanel />
+            </Suspense>
+          </LayoutWrapper>
+        </ProtectedRoute>
+      } />
+
+      <Route path="*" element={<PageNotFound />} />
+    </Routes>
+  );
+};
+
+
+// Only show BottomTabBar when authenticated and not on login/policy pages
+const HIDE_TABBAR_PATHS = ['/login', '/Login', '/contact', '/ContactUs', '/terms', '/TermsConditions', '/refunds', '/RefundsCancellations', '/privacy', '/PrivacyPolicy', '/about', '/AboutUs'];
+
+const ConditionalBottomTabBar = () => {
+  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const location = useLocation();
+  const hide = isLoadingAuth || !isAuthenticated || HIDE_TABBAR_PATHS.includes(location.pathname);
+  if (hide) return null;
+  return <BottomTabBar />;
+};
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <DialogProvider>
+        <AuthProvider>
+          <QueryClientProvider client={queryClientInstance}>
+            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <OfflineBanner />
+              <NavigationTracker />
+              <AuthenticatedApp />
+              <ConditionalBottomTabBar />
+            </Router>
+            <Toaster />
+            <VisualEditAgent />
+          </QueryClientProvider>
+        </AuthProvider>
+      </DialogProvider>
+    </ErrorBoundary>
+  )
+}
+
+export default App

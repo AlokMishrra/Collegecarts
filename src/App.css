@@ -1,0 +1,204 @@
+/* ═══════════════════════════════════════════════════════════════
+   OPTIMIZED MOBILE SCROLL PERFORMANCE
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Clean scroll setup - SIMPLE AND FAST */
+html {
+  height: 100%;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* GPU acceleration ONLY for images */
+img {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+/* Optimize scroll containers */
+.overflow-auto,
+.overflow-y-auto,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Optimize main content container */
+#root {
+  isolation: isolate;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHIMMER ANIMATION & SKELETON LOADERS
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  transform: translate3d(0, 0, 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLLBAR STYLING
+   ═══════════════════════════════════════════════════════════════ */
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  transform: translate3d(0, 0, 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE TRANSITIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+.page-enter {
+  animation: fadeIn 150ms ease-in forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: fadeIn 150ms ease-in;
+  transform: translate3d(0, 0, 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BUTTON & INTERACTIVE ELEMENT OPTIMIZATION
+   ═══════════════════════════════════════════════════════════════ */
+
+button,
+.button,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 80ms ease, opacity 80ms ease;
+}
+
+button:active,
+.button:active,
+[role="button"]:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* Remove tap highlight */
+a,
+button,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth number input — hide arrows */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD & GRID OPTIMIZATION
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.order-card-enter {
+  animation: cardEnter 200ms ease-out forwards;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE-SPECIFIC OPTIMIZATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Optimize touch targets */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent zoom on input focus */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  
+  /* Optimize images on mobile */
+  img {
+    image-rendering: -webkit-optimize-contrast;
+  }
+  
+  /* Better scroll performance on mobile */
+  body,
+  #root {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HORIZONTAL SCROLL OPTIMIZATION
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Optimize horizontal scroll containers */
+.overflow-x-auto,
+.overflow-x-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-x-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MISC OPTIMIZATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+a {
+  -webkit-tap-highlight-color: transparent;
+}

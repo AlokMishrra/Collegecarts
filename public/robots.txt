@@ -1,0 +1,31 @@
+# CollegeCart Shop - Robots.txt
+# Domain: shop.collegecarts.in
+# Founded by Alok Mishra, 2026
+
+# Allow all search engines
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /CCA
+Disallow: /api/
+Disallow: /private/
+Disallow: /*.json$
+
+# Googlebot specific rules
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /CCA
+Disallow: /api/
+Crawl-delay: 1
+
+# Bingbot rules
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /CCA
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://shop.collegecarts.in/sitemap.xml
+Sitemap: https://shop.collegecarts.in/sitemap-images.xml

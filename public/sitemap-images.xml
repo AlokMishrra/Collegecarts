@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- Home Page Images -->
+  <url>
+    <loc>https://shop.collegecarts.in/</loc>
+    <image:image>
+      <image:loc>https://shop.collegecarts.in/og-image.jpg</image:loc>
+      <image:title>CollegeCart Shop - Campus Grocery Delivery India</image:title>
+      <image:caption>Founded by Alok Mishra in 2026 - 10-minute delivery to college hostels</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://shop.collegecarts.in/logo.png</image:loc>
+      <image:title>CollegeCart Logo</image:title>
+      <image:caption>CollegeCart - India's campus delivery platform</image:caption>
+    </image:image>
+  </url>
+  
+  <!-- Shop Page Images -->
+  <url>
+    <loc>https://shop.collegecarts.in/Shop</loc>
+    <image:image>
+      <image:loc>https://shop.collegecarts.in/hero-shop.jpg</image:loc>
+      <image:title>Shop Groceries at CollegeCart</image:title>
+      <image:caption>Browse groceries, snacks, and essentials for campus delivery</image:caption>
+    </image:image>
+  </url>
+
+</urlset>

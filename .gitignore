@@ -1,0 +1,84 @@
+# ============================================================
+# Environment Variables (CRITICAL - NEVER COMMIT)
+# ============================================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+*.env
+
+# ============================================================
+# Sensitive Files & Directories
+# ============================================================
+# Archive folder may contain deployment guides with secrets
+archive/
+archive/*
+
+# Scripts that may contain hardcoded credentials
+scripts/*.ps1
+scripts/*.mjs
+scripts/run-schema.mjs
+scripts/apply-schema.ps1
+
+# User data exports
+*.csv
+users_export_*.csv
+
+# ============================================================
+# Logs (may contain sensitive data)
+# ============================================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ============================================================
+# Dependencies
+# ============================================================
+node_modules
+dist
+dist-ssr
+*.local
+
+# ============================================================
+# Editor directories and files
+# ============================================================
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ============================================================
+# Deployment
+# ============================================================
+.vercel
+
+# ============================================================
+# Security Reports (Keep locally, don't commit)
+# ============================================================
+SECURITY_DOCUMENTATION.md
+SECURITY_AUDIT_REPORT.md
+FINAL_SECURITY_SCAN_REPORT.md
+VULNERABILITIES_FIXED.md
+SECURITY_REFACTOR_COMPLETE.md
+SECURITY_CHECKLIST.md
+QUICK_SECURITY_FIX.md
+
+# ============================================================
+# Documentation with Exposed Credentials
+# ============================================================
+DEPLOY_EDGE_FUNCTIONS.md
+CORRECTED_SQL_FIXES.md
+FIX_COD_PAYMENT_LINK_ERROR.md
+ADD_CASHFREE_SECRETS.md
+docs/COMPLETE_DOCUMENTATION.md
+.env*.local

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- Home Page (Public - Redirects to Shop for logged-in users) -->
+  <url>
+    <loc>https://shop.collegecarts.in/</loc>
+    <lastmod>2026-01-07</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://shop.collegecarts.in/og-image.jpg</image:loc>
+      <image:title>CollegeCart Shop - Campus Delivery India</image:title>
+      <image:caption>Founded by Alok Mishra in 2026</image:caption>
+    </image:image>
+  </url>
+  
+  <!-- Login Page (Public) -->
+  <url>
+    <loc>https://shop.collegecarts.in/Login</loc>
+    <lastmod>2026-01-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- About Us Page (Public - Founder Page) -->
+  <url>
+    <loc>https://shop.collegecarts.in/AboutUs</loc>
+    <lastmod>2026-01-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  
+  <!-- Contact Us Page (Public) -->
+  <url>
+    <loc>https://shop.collegecarts.in/ContactUs</loc>
+    <lastmod>2026-01-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- Privacy Policy Page (Public) -->
+  <url>
+    <loc>https://shop.collegecarts.in/PrivacyPolicy</loc>
+    <lastmod>2026-01-07</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <!-- Terms & Conditions Page (Public) -->
+  <url>
+    <loc>https://shop.collegecarts.in/TermsConditions</loc>
+    <lastmod>2026-01-07</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <!-- Refunds & Cancellations Page (Public) -->
+  <url>
+    <loc>https://shop.collegecarts.in/RefundsCancellations</loc>
+    <lastmod>2026-01-07</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+</urlset>
