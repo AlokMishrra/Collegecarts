@@ -161,3 +161,39 @@ SELECT routine_name, data_type
 FROM   information_schema.routines
 WHERE  routine_schema = 'public'
   AND  routine_name IN ('reserve_stock', 'confirm_delivery', 'cancel_order_stock');
+
+
+-- ============================================================
+-- FIX REVIEWS CASCADE DELETE
+-- ============================================================
+-- This allows products to be deleted even if they have reviews
+-- The reviews will be automatically deleted when the product is deleted
+
+-- Drop the existing foreign key constraints
+ALTER TABLE public.reviews 
+DROP CONSTRAINT IF EXISTS reviews_product_id_fkey;
+
+ALTER TABLE public.reviews 
+DROP CONSTRAINT IF EXISTS reviews_user_id_fkey;
+
+-- Add the foreign key constraints with CASCADE delete
+ALTER TABLE public.reviews 
+ADD CONSTRAINT reviews_product_id_fkey 
+FOREIGN KEY (product_id) 
+REFERENCES public.products(id) 
+ON DELETE CASCADE;
+
+ALTER TABLE public.reviews 
+ADD CONSTRAINT reviews_user_id_fkey 
+FOREIGN KEY (user_id) 
+REFERENCES public.users(id) 
+ON DELETE CASCADE;
+
+-- Verify the constraints
+SELECT 
+  conname AS constraint_name,
+  conrelid::regclass AS table_name,
+  confrelid::regclass AS referenced_table,
+  confdeltype AS on_delete_action
+FROM pg_constraint
+WHERE conname LIKE 'reviews_%_fkey';

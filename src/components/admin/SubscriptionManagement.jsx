@@ -39,6 +39,7 @@ export default function SubscriptionManagement() {
   const [createForm, setCreateForm] = useState({ user_id: "", user_email: "", user_name: "", plan_type: "student", months: 1, amount: 99 });
   const [editForm, setEditForm] = useState({ plan_type: "student", status: "active", amount_paid: 99, end_date: "", admin_notes: "" });
   const [loyaltyForm, setLoyaltyForm] = useState({ user_id: "", user_name: "", points: "", reason: "", type: "bonus" });
+  const [userSearchQuery, setUserSearchQuery] = useState("");
   // Plan price management
   const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [editingPlan, setEditingPlan] = useState(null);
@@ -628,34 +629,78 @@ export default function SubscriptionManagement() {
       </Dialog>
 
       {/* Loyalty Points Dialog */}
-      <Dialog open={showLoyaltyDialog} onOpenChange={setShowLoyaltyDialog}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={showLoyaltyDialog} onOpenChange={(open) => {
+        setShowLoyaltyDialog(open);
+        if (!open) setUserSearchQuery(""); // Reset search when closing
+      }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Star className="w-4 h-4 text-yellow-500" />Add / Deduct Loyalty Points
+              <Star className="w-5 h-5 text-yellow-500" />
+              Add / Deduct Loyalty Points
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
-              <Label className="text-xs">Select User</Label>
-              <Select value={loyaltyForm.user_id} onValueChange={v => {
-                const u = users.find(u => u.id === v);
-                setLoyaltyForm(f => ({ ...f, user_id: v, user_name: u?.full_name || u?.email || "" }));
-              }}>
-                <SelectTrigger className="mt-1">
+              <Label className="text-sm font-medium mb-2 block">Select User</Label>
+              {/* Search Input */}
+              <Input
+                placeholder="Search by name or email..."
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                className="mb-2"
+              />
+              {/* User Select Dropdown */}
+              <Select 
+                value={loyaltyForm.user_id} 
+                onValueChange={v => {
+                  const u = users.find(u => u.id === v);
+                  setLoyaltyForm(f => ({ ...f, user_id: v, user_name: u?.full_name || u?.email || "" }));
+                }}
+              >
+                <SelectTrigger>
                   <SelectValue placeholder="Choose a user..." />
                 </SelectTrigger>
-                <SelectContent>
-                  {users.map(u => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.email} ({u.email})</SelectItem>
-                  ))}
+                <SelectContent className="max-h-[250px]">
+                  {users
+                    .filter(u => {
+                      if (!userSearchQuery) return true;
+                      const search = userSearchQuery.toLowerCase();
+                      return (
+                        u.full_name?.toLowerCase().includes(search) || 
+                        u.email?.toLowerCase().includes(search)
+                      );
+                    })
+                    .map(u => (
+                      <SelectItem key={u.id} value={u.id}>
+                        <div className="flex flex-col py-1">
+                          <span className="font-medium">{u.full_name || u.email}</span>
+                          {u.full_name && <span className="text-xs text-gray-500">{u.email}</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  {users.filter(u => {
+                    if (!userSearchQuery) return true;
+                    const search = userSearchQuery.toLowerCase();
+                    return (
+                      u.full_name?.toLowerCase().includes(search) || 
+                      u.email?.toLowerCase().includes(search)
+                    );
+                  }).length === 0 && (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No users found matching "{userSearchQuery}"
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
-              <Label className="text-xs">Type</Label>
+              <Label className="text-sm font-medium mb-2 block">Type</Label>
               <Select value={loyaltyForm.type} onValueChange={v => setLoyaltyForm(f => ({ ...f, type: v }))}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bonus">Bonus (Add)</SelectItem>
                   <SelectItem value="earned">Earned (Add)</SelectItem>
@@ -663,9 +708,10 @@ export default function SubscriptionManagement() {
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
-              <Label className="text-xs">
-                Points {loyaltyForm.type === 'redeemed' ? '(will be deducted — enter positive number)' : '(to add)'}
+              <Label className="text-sm font-medium mb-2 block">
+                Points {loyaltyForm.type === 'redeemed' ? '(to deduct)' : '(to add)'}
               </Label>
               <Input
                 type="number"
@@ -673,35 +719,55 @@ export default function SubscriptionManagement() {
                 placeholder="e.g. 100"
                 value={loyaltyForm.points}
                 onChange={e => setLoyaltyForm(f => ({ ...f, points: e.target.value }))}
-                className="mt-1"
               />
               {loyaltyForm.points && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 mt-2">
                   Worth ₹{(Math.abs(parseInt(loyaltyForm.points) || 0) / 10).toFixed(2)} in discounts
                 </p>
               )}
             </div>
+            
             <div>
-              <Label className="text-xs">Reason (shown to user)</Label>
+              <Label className="text-sm font-medium mb-2 block">Reason (shown to user)</Label>
               <Input
                 placeholder="e.g. Welcome bonus, Referral reward..."
                 value={loyaltyForm.reason}
                 onChange={e => setLoyaltyForm(f => ({ ...f, reason: e.target.value }))}
-                className="mt-1"
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" onClick={() => setShowLoyaltyDialog(false)}>Cancel</Button>
+          
+          <DialogFooter className="gap-2 mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowLoyaltyDialog(false);
+                setUserSearchQuery("");
+              }}
+            >
+              Cancel
+            </Button>
             <Button
               onClick={handleAddLoyaltyPoints}
               disabled={isProcessing || !loyaltyForm.user_id || !loyaltyForm.points}
               className={loyaltyForm.type === 'redeemed' ? "bg-red-600 hover:bg-red-700" : "bg-yellow-500 hover:bg-yellow-600"}
             >
-              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                loyaltyForm.type === 'redeemed'
-                  ? <><Gift className="w-4 h-4 mr-1" />Deduct Points</>
-                  : <><Star className="w-4 h-4 mr-1" />Add Points</>
+              {isProcessing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  {loyaltyForm.type === 'redeemed' ? (
+                    <>
+                      <Gift className="w-4 h-4 mr-2" />
+                      Deduct Points
+                    </>
+                  ) : (
+                    <>
+                      <Star className="w-4 h-4 mr-2" />
+                      Add Points
+                    </>
+                  )}
+                </>
               )}
             </Button>
           </DialogFooter>
