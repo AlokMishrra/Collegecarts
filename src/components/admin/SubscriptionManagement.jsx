@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, XCircle, Clock, Users, TrendingUp, Loader2, Crown, Plus, Edit2, Star, Gift } from "lucide-react";
 import { toast } from "sonner";
+import { useDialog } from "@/components/ui/alert-dialog-custom";
 
 const DEFAULT_PLANS = {
   student: { label: "Student Plan", price: 99 },
@@ -25,7 +26,21 @@ const STATUS_STYLES = {
   expired: "bg-gray-100 text-gray-600"
 };
 
+const LOYALTY_MESSAGE_TEMPLATES = [
+  "Welcome bonus - Thank you for joining!",
+  "Referral reward - Thanks for spreading the word!",
+  "Order completion bonus",
+  "Special promotion reward",
+  "Birthday bonus - Happy Birthday!",
+  "Loyalty milestone reward",
+  "Feedback reward - Thanks for your review!",
+  "First order bonus",
+  "Subscription renewal bonus",
+  "Compensation for inconvenience"
+];
+
 export default function SubscriptionManagement() {
+  const { confirm } = useDialog();
   const [subs, setSubs] = useState([]);
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,6 +55,7 @@ export default function SubscriptionManagement() {
   const [editForm, setEditForm] = useState({ plan_type: "student", status: "active", amount_paid: 99, end_date: "", admin_notes: "" });
   const [loyaltyForm, setLoyaltyForm] = useState({ user_id: "", user_name: "", points: "", reason: "", type: "bonus" });
   const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [createUserSearchQuery, setCreateUserSearchQuery] = useState("");
   // Plan price management
   const [plans, setPlans] = useState(DEFAULT_PLANS);
   const [editingPlan, setEditingPlan] = useState(null);
@@ -132,7 +148,13 @@ export default function SubscriptionManagement() {
   };
 
   const cancelSub = async (sub) => {
-    if (!window.confirm(`Cancel subscription for ${sub.user_name}?`)) return;
+    const confirmed = await confirm(
+      `Are you sure you want to cancel the subscription for ${sub.user_name}? This action cannot be undone.`,
+      'Cancel Subscription'
+    );
+    
+    if (!confirmed) return;
+
     setIsProcessing(true);
     const updated = { ...sub, status: 'cancelled', admin_notes: 'Cancelled by admin' };
     setSubs(prev => prev.map(s => s.id === sub.id ? updated : s));
@@ -505,55 +527,126 @@ export default function SubscriptionManagement() {
       )}
 
       {/* Create Subscription Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Crown className="w-4 h-4 text-yellow-500" />Create Subscription</DialogTitle></DialogHeader>
-          <div className="space-y-3">
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        setShowCreateDialog(open);
+        if (!open) setCreateUserSearchQuery(""); // Reset search when closing
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-yellow-500" />
+              Create Subscription
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
             <div>
-              <Label className="text-xs">Select User</Label>
-              <Select onValueChange={v => {
-                const u = users.find(u => u.id === v);
-                setCreateForm(f => ({ ...f, user_id: v, user_email: u?.email || "", user_name: u?.full_name || "" }));
-              }}>
-                <SelectTrigger className="mt-1">
+              <Label className="text-sm font-medium mb-2 block">Select User</Label>
+              {/* Search Input */}
+              <Input
+                placeholder="Search by name or email..."
+                value={createUserSearchQuery}
+                onChange={(e) => setCreateUserSearchQuery(e.target.value)}
+                className="mb-2"
+              />
+              {/* User Select Dropdown */}
+              <Select 
+                onValueChange={v => {
+                  const u = users.find(u => u.id === v);
+                  setCreateForm(f => ({ ...f, user_id: v, user_email: u?.email || "", user_name: u?.full_name || "" }));
+                }}
+              >
+                <SelectTrigger>
                   <SelectValue placeholder="Choose a user..." />
                 </SelectTrigger>
-                <SelectContent>
-                  {users.map(u => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.email} ({u.email})</SelectItem>
-                  ))}
+                <SelectContent className="max-h-[250px]">
+                  {users
+                    .filter(u => {
+                      if (!createUserSearchQuery) return true;
+                      const search = createUserSearchQuery.toLowerCase();
+                      return (
+                        u.full_name?.toLowerCase().includes(search) || 
+                        u.email?.toLowerCase().includes(search)
+                      );
+                    })
+                    .map(u => (
+                      <SelectItem key={u.id} value={u.id}>
+                        <div className="flex flex-col py-1">
+                          <span className="font-medium">{u.full_name || u.email}</span>
+                          {u.full_name && <span className="text-xs text-gray-500">{u.email}</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  {users.filter(u => {
+                    if (!createUserSearchQuery) return true;
+                    const search = createUserSearchQuery.toLowerCase();
+                    return (
+                      u.full_name?.toLowerCase().includes(search) || 
+                      u.email?.toLowerCase().includes(search)
+                    );
+                  }).length === 0 && (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No users found matching "{createUserSearchQuery}"
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
-              <Label className="text-xs">Plan</Label>
-              <Select value={createForm.plan_type} onValueChange={v => setCreateForm(f => ({ ...f, plan_type: v, amount: plans[v]?.price * (parseInt(f.months) || 1) }))}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <Label className="text-sm font-medium mb-2 block">Plan</Label>
+              <Select 
+                value={createForm.plan_type} 
+                onValueChange={v => setCreateForm(f => ({ ...f, plan_type: v, amount: plans[v]?.price * (parseInt(f.months) || 1) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {Object.entries(plans).map(([key, plan]) => (
-                    <SelectItem key={key} value={key}>{plan.label} — ₹{plan.price}/month</SelectItem>
+                    <SelectItem key={key} value={key}>
+                      {plan.label} — ₹{plan.price}/month
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
-              <Label className="text-xs">Duration (months)</Label>
-              <Input type="number" min={1} max={12} value={createForm.months}
+              <Label className="text-sm font-medium mb-2 block">Duration (months)</Label>
+              <Input 
+                type="number" 
+                min={1} 
+                max={12} 
+                value={createForm.months}
                 onChange={e => setCreateForm(f => ({ ...f, months: e.target.value, amount: plans[f.plan_type]?.price * (parseInt(e.target.value) || 1) }))}
-                className="mt-1" />
+              />
             </div>
+            
             <div>
-              <Label className="text-xs">Amount to Charge (₹) <span className="text-gray-400">— editable</span></Label>
-              <Input type="number" min={0} value={createForm.amount}
+              <Label className="text-sm font-medium mb-2 block">
+                Amount to Charge (₹) <span className="text-gray-400 text-xs">— editable</span>
+              </Label>
+              <Input 
+                type="number" 
+                min={0} 
+                value={createForm.amount}
                 onChange={e => setCreateForm(f => ({ ...f, amount: e.target.value }))}
-                className="mt-1" />
-              <p className="text-xs text-gray-400 mt-1">
+              />
+              <p className="text-xs text-gray-500 mt-2">
                 Valid till: {new Date(getEndDate(parseInt(createForm.months) || 1)).toLocaleDateString('en-IN')}
               </p>
             </div>
           </div>
-          <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
+          <DialogFooter className="gap-2 mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowCreateDialog(false);
+                setCreateUserSearchQuery("");
+              }}
+            >
+              Cancel
+            </Button>
             <Button onClick={handleCreateSubscription} disabled={isProcessing || !createForm.user_id} className="bg-yellow-500 hover:bg-yellow-600">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Activate Subscription"}
             </Button>
@@ -729,8 +822,35 @@ export default function SubscriptionManagement() {
             
             <div>
               <Label className="text-sm font-medium mb-2 block">Reason (shown to user)</Label>
+              {/* Quick message templates */}
+              <div className="mb-2 flex flex-wrap gap-1">
+                {LOYALTY_MESSAGE_TEMPLATES.slice(0, 3).map((template, idx) => (
+                  <Button
+                    key={idx}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setLoyaltyForm(f => ({ ...f, reason: template }))}
+                  >
+                    {template.split(' - ')[0]}
+                  </Button>
+                ))}
+                <Select onValueChange={v => setLoyaltyForm(f => ({ ...f, reason: v }))}>
+                  <SelectTrigger className="h-7 w-20 text-xs">
+                    <SelectValue placeholder="More..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOYALTY_MESSAGE_TEMPLATES.map((template, idx) => (
+                      <SelectItem key={idx} value={template} className="text-xs">
+                        {template}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Input
-                placeholder="e.g. Welcome bonus, Referral reward..."
+                placeholder="Or type custom message..."
                 value={loyaltyForm.reason}
                 onChange={e => setLoyaltyForm(f => ({ ...f, reason: e.target.value }))}
               />

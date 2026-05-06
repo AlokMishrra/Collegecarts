@@ -1616,22 +1616,39 @@ export default function Cart() {
                   )}
                 </div>
 
-                {/* Loyalty Points Redemption — Weekend Only (Sat & Sun) */}
-                {(() => { const d = new Date().getDay(); return (d === 0 || d === 6) && loyaltyPoints >= 100; })() && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded p-2">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-emerald-600 font-bold text-xs">★</span>
+                {/* Loyalty Points Redemption - Weekend Only (Saturday & Sunday) */}
+                {(() => { 
+                  const dayOfWeek = new Date().getDay(); 
+                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // 0 = Sunday, 6 = Saturday
+                  return isWeekend && loyaltyPoints >= 100; 
+                })() && (
+                  <div className="bg-gradient-to-r from-yellow-50 to-emerald-50 border border-emerald-200 rounded-xl p-3 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-emerald-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                        <span className="text-white font-bold text-sm">★</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <Label className="text-[10px] sm:text-xs font-semibold text-emerald-900 block">🎉 Weekend Reward!</Label>
-                        <p className="text-[9px] sm:text-[10px] text-emerald-700">{loyaltyPoints} pts = ₹{(loyaltyPoints / 10).toFixed(2)} off</p>
+                        <Label className="text-xs sm:text-sm font-bold text-gray-900 block">🎉 Weekend Reward!</Label>
+                        <p className="text-[10px] sm:text-xs text-gray-600">
+                          You have <span className="font-semibold text-emerald-600">{loyaltyPoints} points</span> = ₹{(loyaltyPoints / 10).toFixed(2)} off
+                        </p>
                       </div>
                     </div>
                     {pointsToRedeem > 0 ? (
-                      <div className="flex items-center justify-between bg-emerald-100 rounded p-2">
-                        <p className="text-xs font-medium text-emerald-800">✓ Saving ₹{(loyaltyPoints / 10).toFixed(2)}</p>
-                        <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] text-red-600 px-2" onClick={() => setPointsToRedeem(0)}>
+                      <div className="flex items-center justify-between bg-emerald-100 rounded-lg p-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-600 text-lg">✓</span>
+                          <p className="text-xs sm:text-sm font-semibold text-emerald-800">
+                            Saving ₹{(pointsToRedeem / 10).toFixed(2)}
+                          </p>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 text-[10px] sm:text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2" 
+                          onClick={() => setPointsToRedeem(0)}
+                        >
                           Remove
                         </Button>
                       </div>
@@ -1641,9 +1658,10 @@ export default function Cart() {
                         variant="outline"
                         size="sm"
                         onClick={() => setPointsToRedeem(loyaltyPoints)}
-                        className="w-full h-7 text-[10px] bg-white text-emerald-700 border-emerald-300"
+                        className="w-full h-8 sm:h-9 text-[10px] sm:text-xs font-semibold bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400 transition-all"
                       >
-                        Redeem All {loyaltyPoints} pts → save ₹{(loyaltyPoints / 10).toFixed(2)}
+                        <span className="mr-1">🎁</span>
+                        Redeem All {loyaltyPoints} pts → Save ₹{(loyaltyPoints / 10).toFixed(2)}
                       </Button>
                     )}
                   </div>
