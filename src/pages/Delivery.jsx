@@ -1191,13 +1191,19 @@ export default function Delivery() {
             <button
               onClick={deliveryPerson.is_available ? handleGoOffline : handleGoOnline}
               disabled={isTogglingAvailability}
-              className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${
+              className={`relative inline-flex items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:ring-offset-2 ${
                 deliveryPerson.is_available ? 'bg-green-500' : isNegativeBalance ? 'bg-red-200' : 'bg-gray-300'
               }`}
+              style={{ height: '20px', width: '70px', minWidth: '50px', padding: '5px' }}
             >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
-                deliveryPerson.is_available ? 'translate-x-8' : 'translate-x-1'
-              }`} />
+              <span 
+                className="inline-block rounded-full bg-white shadow-md transition-transform duration-200"
+                style={{ 
+                  height: '30px', 
+                  width: '30px',
+                  transform: deliveryPerson.is_available ? 'translateX(28px)' : 'translateX(0)'
+                }}
+              />
             </button>
           </div>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
