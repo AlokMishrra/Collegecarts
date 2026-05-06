@@ -194,12 +194,18 @@ export default function ProductDetails() {
         checkWishlistStatus(user.id, prod.id);
       }
 
-      // Load reviews
-      const reviews = await base44.entities.Review.filter({ product_id: prod.id });
-      setReviewCount(reviews.length);
-      if (reviews.length > 0) {
-        const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-        setAverageRating(avg);
+      // Load reviews (graceful fallback if table doesn't exist)
+      try {
+        const reviews = await base44.entities.Review.filter({ product_id: prod.id });
+        setReviewCount(reviews.length);
+        if (reviews.length > 0) {
+          const avg = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+          setAverageRating(avg);
+        }
+      } catch (reviewErr) {
+        console.warn("Reviews not available:", reviewErr.message);
+        setReviewCount(0);
+        setAverageRating(0);
       }
     } catch (error) {
       console.error("Error loading product:", error);

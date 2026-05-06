@@ -85,7 +85,7 @@ export class Entity {
     
     // Determine the correct updated timestamp column name
     // Tables without an updated_at/updated_date column must be excluded.
-    const NO_TIMESTAMP_TABLES = ['subscriptions', 'loyalty_transactions', 'campaign_usage', 'referrals', 'wishlists', 'wallet_transactions', 'chat_messages', 'knowledge_articles', 'gamification', 'onboarding_progress', 'admin_activity_log', 'shifts', 'hostels', 'delivery_queries', 'error_logs'];
+    const NO_TIMESTAMP_TABLES = ['subscriptions', 'loyalty_transactions', 'campaign_usage', 'referrals', 'wishlists', 'wallet_transactions', 'chat_messages', 'knowledge_articles', 'gamification', 'onboarding_progress', 'admin_activity_log', 'shifts', 'hostels', 'delivery_queries', 'error_logs', 'reviews'];
     
     let timestampPatch = {};
     if (this.table === 'support_tickets' || this.table === 'support_ticket_comments') {

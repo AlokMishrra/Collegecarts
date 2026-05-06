@@ -22,6 +22,11 @@ import CODPaymentCollector from "../components/delivery/CODPaymentCollector";
 import RaiseQuery from "../components/delivery/RaiseQuery";
 import { supabase } from "@/lib/supabase";
 import { useDialog } from "@/components/ui/alert-dialog-custom";
+import {
+  deductStockOnDelivery,
+  releaseStockOnCancel,
+  notifyStockErrors
+} from "@/utils/inventoryService";
 
 export default function Delivery() {
   const { warning } = useDialog();
@@ -466,22 +471,14 @@ export default function Delivery() {
 
     // ── Fire all DB writes in background (non-blocking) ──────────────────
     const dbWrites = async () => {
-      // Stock reduction — wrap each rpc in try/catch (not .catch())
-      if (order.items && Array.isArray(order.items)) {
-        await Promise.all(
-          order.items
-            .filter(item => item.product_id && item.quantity)
-            .map(async (item) => {
-              try {
-                await supabase.rpc('decrement_stock', {
-                  p_product_id: item.product_id,
-                  p_quantity: item.quantity
-                });
-              } catch (err) {
-                console.error(`Stock reduction failed for ${item.product_id}:`, err);
-              }
-            })
-        );
+      // Stock reduction — atomic RPC with hostel support
+      try {
+        const stockResult = await deductStockOnDelivery(order);
+        if (!stockResult.success) {
+          console.error(`[Delivery] Stock deduction had errors for order ${order.order_number}:`, stockResult.errors);
+        }
+      } catch (err) {
+        console.error(`[Delivery] Stock deduction failed for order ${order.order_number}:`, err);
       }
 
       const ops = [
@@ -531,6 +528,14 @@ export default function Delivery() {
     const order = assignedOrders.find(o => o.id === orderId);
     setShowCancelDialog(false);
     setAssignedOrders(prev => prev.filter(o => o.id !== orderId));
+
+    // Release reserved stock on cancel (non-blocking)
+    if (order) {
+      releaseStockOnCancel(order).catch(err => {
+        console.error(`[Delivery] Stock release on cancel failed for order ${order.order_number}:`, err);
+      });
+    }
+
     await Promise.all([
       base44.entities.Order.update(orderId, { status: "cancelled", delivery_person_id: null, cancellation_reason: cancellationReason, cancelled_by: deliveryPerson.name }),
       base44.entities.DeliveryPerson.update(deliveryPerson.id, { current_orders: (deliveryPerson.current_orders || []).filter(id => id !== orderId) }),

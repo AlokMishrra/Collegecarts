@@ -4,6 +4,7 @@ import { Order } from "@/entities/Order";
 import { DeliveryPerson } from "@/entities/DeliveryPerson";
 import { Notification } from "@/entities/Notification";
 import { User } from "@/entities/User";
+import { supabase } from "@/lib/supabase";
 import { Package, Clock, Truck, CheckCircle, XCircle, User as UserIcon, Trash2, RefreshCw, DollarSign, Search, Filter, FileText, FileSpreadsheet, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
+import {
+  deductStockOnDelivery,
+  releaseStockOnCancel,
+  notifyStockErrors
+} from "@/utils/inventoryService";
 import DeliveryMap from "../delivery/DeliveryMap";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
@@ -143,8 +150,19 @@ export default function OrderManagement() {
 
       await Order.update(orderId, updateData);
 
-      // Create notification for customer
+      // ── Stock lifecycle ───────────────────────────────────────────────
       const order = orders.find(o => o.id === orderId);
+      if (newStatus === 'delivered' && order) {
+        try {
+          const stockResult = await deductStockOnDelivery(order);
+          notifyStockErrors(stockResult, `Stock deduction for order ${order.order_number}`);
+        } catch (err) {
+          console.error('Stock deduction on delivery failed:', err);
+          toast.error(`Stock update failed for order ${order.order_number}. Check error logs.`);
+        }
+      }
+
+      // Create notification for customer
       if (order) {
         await Notification.create({
           user_id: order.user_id,
@@ -364,6 +382,17 @@ export default function OrderManagement() {
         status: "cancelled"
       });
 
+      // ── Release reserved stock — does NOT deduct actual stock ─────────
+      if (order) {
+        try {
+          const releaseResult = await releaseStockOnCancel(order);
+          notifyStockErrors(releaseResult, `Stock release for order ${order.order_number}`);
+        } catch (err) {
+          console.error('Stock release on cancel failed:', err);
+          toast.error(`Stock release failed for order ${order.order_number}. Check error logs.`);
+        }
+      }
+
       if (order) {
         await Notification.create({
           user_id: order.user_id,
@@ -526,12 +555,14 @@ export default function OrderManagement() {
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = !searchQuery || 
-      order.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.delivery_address.toLowerCase().includes(searchQuery.toLowerCase());
+      order.order_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.delivery_address?.toLowerCase().includes(searchQuery.toLowerCase());
     
+    // Use hostel_id for filtering (explicit field), fallback to address string
     const matchesHostel = hostelFilter === "all" || 
-      order.delivery_address.toLowerCase().includes(hostelFilter.toLowerCase());
+      order.hostel_id === hostelFilter ||
+      order.delivery_address?.toLowerCase().includes(hostelFilter.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || order.status === statusFilter;
     

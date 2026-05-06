@@ -16,6 +16,7 @@ import { useDialog } from "@/components/ui/alert-dialog-custom";
 import { BackButton } from "@/components/ui/back-button";
 import { withRetry, generateIdempotencyKey, checkDuplicateOrder } from "@/utils/orderUtils";
 import { logErrorToDB } from "@/utils/supabaseWithLogging";
+import { releaseStockOnCancel } from "@/utils/inventoryService";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -136,7 +137,19 @@ export default function Cart() {
   // Handle payment timeout
   const handlePaymentTimeout = async (orderId) => {
     try {
+      // Fetch the order to get items for stock release
+      const orders = await Order.filter({ id: orderId });
+      const order = orders[0];
+
       await Order.update(orderId, { status: 'cancelled' });
+
+      // Release any reserved stock
+      if (order) {
+        releaseStockOnCancel(order).catch(err => {
+          console.error('[Cart] Stock release on payment timeout failed:', err);
+        });
+      }
+
       await Notification.create({
         user_id: user.id,
         title: "Payment Expired",
@@ -251,6 +264,34 @@ export default function Cart() {
   useEffect(() => {
     checkUser();
   }, [checkUser]); // Dependency: checkUser
+
+  // Re-load cart when navigating back to this page (tab switch, browser back, etc.)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        loadCart(user.id);
+      }
+    };
+
+    // Re-load when cart is updated from another page (e.g., Shop → add to cart)
+    const handleCartUpdate = () => {
+      if (user) {
+        loadCart(user.id);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('cartUpdated', handleCartUpdate);
+    
+    // Also reload on window focus (covers tab switches in SPA)
+    window.addEventListener('focus', handleCartUpdate);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('cartUpdated', handleCartUpdate);
+      window.removeEventListener('focus', handleCartUpdate);
+    };
+  }, [user, loadCart]);
 
   const updateQuantity = async (itemId, newQuantity) => {
     if (newQuantity <= 0) {
@@ -864,25 +905,35 @@ export default function Cart() {
           toast.loading("Payment confirmed! Creating your order...", { id: 'order-processing' });
         }
 
-      // ⚡ STEP 5: Atomic stock check via RPC (critical operation)
-      // ⚡ STEP 5: Atomic stock check via RPC (critical operation)
-      const stockChecks = await Promise.all(
-        cartItems.map(item =>
-          supabase.rpc('decrement_stock', {
-            p_product_id: item.product_id,
-            p_quantity: item.quantity
-          })
-        )
-      );
+      // ⚡ STEP 5: Stock availability check
+      // Uses direct SELECT — safe, no RPC dependency.
+      // Once sql/RUN_THIS_IN_SUPABASE_SQL_EDITOR.sql is run in Supabase Dashboard,
+      // this will automatically upgrade to atomic RPC (reserve_stock).
+      const hostelForReservation = selectedHostel === "Other" ? null : selectedHostel;
 
-      const failedItems = stockChecks
-        .map((result, index) => ({ result, item: cartItems[index] }))
-        .filter(({ result }) => !result.data?.success);
+      const productIds = cartItems.map(i => i.product_id);
+      const { data: stockData, error: stockFetchErr } = await supabase
+        .from('products')
+        .select('id, stock_quantity, hostel_stock')
+        .in('id', productIds);
+
+      if (stockFetchErr) throw new Error('Failed to check stock: ' + stockFetchErr.message);
+
+      const failedItems = cartItems.filter(item => {
+        const prod = (stockData || []).find(p => p.id === item.product_id);
+        if (!prod) return true;
+        let available = prod.stock_quantity || 0;
+        if (hostelForReservation && prod.hostel_stock &&
+            typeof prod.hostel_stock[hostelForReservation] === 'number') {
+          available = prod.hostel_stock[hostelForReservation];
+        }
+        return available < item.quantity;
+      });
 
       if (failedItems.length > 0) {
-        const failedIds = failedItems.map(f => f.item.product_id);
+        const failedIds = failedItems.map(f => f.product_id);
         setCartItems(prev => prev.filter(i => !failedIds.includes(i.product_id)));
-        const names = failedItems.map(f => f.item.product_name).join(', ');
+        const names = failedItems.map(f => f.product_name).join(', ');
         toast.error(`${names} went out of stock and was removed from your cart.`);
         setIsPlacingOrder(false);
         toast.dismiss(loadingToast);
@@ -895,11 +946,12 @@ export default function Cart() {
         const product = products[item.product_id];
         const dhabaName = selectedDhaba[item.product_id];
         return {
-          product_id: item.product_id,
+          product_id:   item.product_id,
           product_name: product?.name || "",
-          price: getProductPrice(product) || 0,
-          quantity: item.quantity,
-          dhaba_name: dhabaName || null
+          price:        getProductPrice(product) || 0,
+          quantity:     item.quantity,
+          dhaba_name:   dhabaName || null,
+          hostel:       selectedHostel === "Other" ? null : selectedHostel
         };
       });
       
@@ -929,6 +981,7 @@ export default function Cart() {
             order_number: orderNumber,
             customer_name: customerName,
             items: orderItems,
+            hostel_id: selectedHostel === "Other" ? null : selectedHostel,
             total_amount: finalAmount,
             delivery_address: fullAddress,
             phone_number: phoneNumber,

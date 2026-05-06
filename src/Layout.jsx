@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { User } from "@/entities/User";
 import { base44 } from "@/api/base44Client";
@@ -24,6 +24,7 @@ import InAppChat from "./components/chat/InAppChat";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
@@ -351,7 +352,7 @@ export default function Layout({ children, currentPageName }) {
               <NotificationCenter />
               {!user && (
                 <Button
-                  onClick={() => window.location.href = '/login'}
+                  onClick={() => navigate('/login')}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   Login

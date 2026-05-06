@@ -303,12 +303,14 @@ export default function Orders() {
   const filterOrders = (ordersList) => {
     return ordersList.filter(order => {
       const matchesSearch = !orderSearchQuery || 
-        order.order_number.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-        order.customer_name.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-        order.delivery_address.toLowerCase().includes(orderSearchQuery.toLowerCase());
+        order.order_number?.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+        order.customer_name?.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+        order.delivery_address?.toLowerCase().includes(orderSearchQuery.toLowerCase());
       
+      // Use hostel_id for filtering (explicit field), fallback to address string
       const matchesHostel = hostelFilter === "all" || 
-        order.delivery_address.toLowerCase().includes(hostelFilter.toLowerCase());
+        order.hostel_id === hostelFilter ||
+        order.delivery_address?.toLowerCase().includes(hostelFilter.toLowerCase());
       
       return matchesSearch && matchesHostel;
     });
