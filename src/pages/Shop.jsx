@@ -339,7 +339,7 @@ export default function Shop() {
   }, [user]);
 
   const updateCartQuantity = useCallback(async (product, quantityChange) => {
-    if (!user) { window.location.href = "/login"; return; }
+    if (!user) { navigate('/login'); return; }
     if (!checkRateLimit()) return;
 
     if (quantityChange > 0 && !isProductInStock(product)) {

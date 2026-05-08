@@ -166,12 +166,16 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     if (shouldRedirect) {
-      window.location.href = '/';
+      // Use window.history.pushState to avoid full page reload
+      window.history.pushState({}, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
     }
   };
 
   const navigateToLogin = () => {
-    window.location.href = '/login';
+    // Use window.history.pushState to avoid full page reload
+    window.history.pushState({}, '', '/login');
+    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
   return (

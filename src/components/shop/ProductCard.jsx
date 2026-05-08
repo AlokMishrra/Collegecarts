@@ -5,11 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Star, Clock, Heart } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { ProductImage } from "@/components/ui/product-image";
 
 const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCart, onUpdateQuantity, hostelStock: propHostelStock, isInStock, userHostel }) {
+  const navigate = useNavigate();
   const [reviews, setReviews] = useState([]);
   const [avgRating, setAvgRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -75,7 +76,7 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
       }
     } catch (error) {
       if (error.message?.includes("not authenticated")) {
-        window.location.href = '/login';
+        navigate('/login');
       }
     } finally {
       setIsAddingToWishlist(false);

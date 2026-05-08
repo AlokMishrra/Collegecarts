@@ -13,18 +13,17 @@ export default function BulkProductUpdate() {
   const [products, setProducts] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [hostels, setHostels] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Initialize updateData with empty object for hostel_stock
   const [updateData, setUpdateData] = useState({
     price: "",
     original_price: "",
     stock_quantity: "",
-    hostel_stock_mithali: "",
-    hostel_stock_gavaskar: "",
-    hostel_stock_virat: "",
-    hostel_stock_tendulkar: "",
-    hostel_stock_other: "",
+    hostel_stock: {},
     delivery_charge: "",
     delivery_time: "",
     available_from: "",
@@ -37,7 +36,50 @@ export default function BulkProductUpdate() {
 
   useEffect(() => {
     loadData();
+    loadHostels();
   }, []);
+
+  const loadHostels = async () => {
+    try {
+      const defaultHostels = ["Mithali", "Gavaskar", "Virat", "Tendulkar"];
+      
+      try {
+        const hostelData = await base44.entities.Hostel.list();
+        const additionalHostels = hostelData
+          .filter(h => h.is_active !== false)
+          .filter(h => !defaultHostels.includes(h.name))
+          .map(h => h.name);
+        
+        const allHostels = [...defaultHostels, ...additionalHostels, "Other"];
+        setHostels(allHostels);
+        
+        // Initialize hostel_stock fields
+        const hostelStockInit = {};
+        allHostels.forEach(hostel => {
+          hostelStockInit[hostel] = "";
+        });
+        setUpdateData(prev => ({
+          ...prev,
+          hostel_stock: hostelStockInit
+        }));
+      } catch (error) {
+        console.error("Error loading hostels:", error);
+        const fallbackHostels = [...defaultHostels, "Other"];
+        setHostels(fallbackHostels);
+        
+        const hostelStockInit = {};
+        fallbackHostels.forEach(hostel => {
+          hostelStockInit[hostel] = "";
+        });
+        setUpdateData(prev => ({
+          ...prev,
+          hostel_stock: hostelStockInit
+        }));
+      }
+    } catch (error) {
+      console.error("Error in loadHostels:", error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -123,20 +165,22 @@ export default function BulkProductUpdate() {
       }
 
       // Handle hostel stock updates
-      if (updateData.hostel_stock_mithali || updateData.hostel_stock_gavaskar || 
-          updateData.hostel_stock_virat || updateData.hostel_stock_tendulkar || updateData.hostel_stock_other) {
-        
+      const hasHostelStockUpdates = Object.values(updateData.hostel_stock).some(val => val !== "");
+      
+      if (hasHostelStockUpdates) {
         // For each selected product, merge with existing hostel stock
         for (const productId of selectedProducts) {
           const product = allProducts.find(p => p.id === productId);
-          const existingStock = product?.hostel_stock || { Mithali: 0, Gavaskar: 0, Virat: 0, Tendulkar: 0, Other: 0 };
+          const existingStock = product?.hostel_stock || {};
           
           updates.hostel_stock = { ...existingStock };
-          if (updateData.hostel_stock_mithali) updates.hostel_stock.Mithali = parseInt(updateData.hostel_stock_mithali);
-          if (updateData.hostel_stock_gavaskar) updates.hostel_stock.Gavaskar = parseInt(updateData.hostel_stock_gavaskar);
-          if (updateData.hostel_stock_virat) updates.hostel_stock.Virat = parseInt(updateData.hostel_stock_virat);
-          if (updateData.hostel_stock_tendulkar) updates.hostel_stock.Tendulkar = parseInt(updateData.hostel_stock_tendulkar);
-          if (updateData.hostel_stock_other) updates.hostel_stock.Other = parseInt(updateData.hostel_stock_other);
+          
+          // Update only the hostels that have values
+          hostels.forEach(hostel => {
+            if (updateData.hostel_stock[hostel]) {
+              updates.hostel_stock[hostel] = parseInt(updateData.hostel_stock[hostel]);
+            }
+          });
         }
       }
 
@@ -147,7 +191,7 @@ export default function BulkProductUpdate() {
         
         // Merge hostel stock if updating
         if (updates.hostel_stock) {
-          const existingStock = product?.hostel_stock || { Mithali: 0, Gavaskar: 0, Virat: 0, Tendulkar: 0, Other: 0 };
+          const existingStock = product?.hostel_stock || {};
           finalUpdates.hostel_stock = {
             ...existingStock,
             ...updates.hostel_stock
@@ -159,15 +203,18 @@ export default function BulkProductUpdate() {
 
       toast.success(`Successfully updated ${selectedProducts.length} products`);
       setSelectedProducts([]);
+      
+      // Reset updateData with empty hostel_stock
+      const resetHostelStock = {};
+      hostels.forEach(hostel => {
+        resetHostelStock[hostel] = "";
+      });
+      
       setUpdateData({
         price: "",
         original_price: "",
         stock_quantity: "",
-        hostel_stock_mithali: "",
-        hostel_stock_gavaskar: "",
-        hostel_stock_virat: "",
-        hostel_stock_tendulkar: "",
-        hostel_stock_other: "",
+        hostel_stock: resetHostelStock,
         delivery_charge: "",
         delivery_time: "",
         available_from: "",
@@ -298,53 +345,29 @@ export default function BulkProductUpdate() {
 
             <div>
               <Label className="mb-2 block">Hostel-wise Stock</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Mithali</Label>
-                  <Input
-                    type="number"
-                    placeholder="Skip"
-                    value={updateData.hostel_stock_mithali}
-                    onChange={(e) => setUpdateData({...updateData, hostel_stock_mithali: e.target.value})}
-                  />
+              {hostels.length === 0 ? (
+                <div className="text-sm text-gray-500">Loading hostels...</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {hostels.map((hostel) => (
+                    <div key={hostel}>
+                      <Label className="text-xs">{hostel}</Label>
+                      <Input
+                        type="number"
+                        placeholder="Skip"
+                        value={updateData.hostel_stock[hostel] || ""}
+                        onChange={(e) => setUpdateData({
+                          ...updateData, 
+                          hostel_stock: {
+                            ...updateData.hostel_stock,
+                            [hostel]: e.target.value
+                          }
+                        })}
+                      />
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <Label className="text-xs">Gavaskar</Label>
-                  <Input
-                    type="number"
-                    placeholder="Skip"
-                    value={updateData.hostel_stock_gavaskar}
-                    onChange={(e) => setUpdateData({...updateData, hostel_stock_gavaskar: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Virat</Label>
-                  <Input
-                    type="number"
-                    placeholder="Skip"
-                    value={updateData.hostel_stock_virat}
-                    onChange={(e) => setUpdateData({...updateData, hostel_stock_virat: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Tendulkar</Label>
-                  <Input
-                    type="number"
-                    placeholder="Skip"
-                    value={updateData.hostel_stock_tendulkar}
-                    onChange={(e) => setUpdateData({...updateData, hostel_stock_tendulkar: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Other</Label>
-                  <Input
-                    type="number"
-                    placeholder="Skip"
-                    value={updateData.hostel_stock_other}
-                    onChange={(e) => setUpdateData({...updateData, hostel_stock_other: e.target.value})}
-                  />
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

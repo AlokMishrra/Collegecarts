@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Search, Package, Award, Heart, MapPin, Shield, Building2, Phone, Mail, Calendar, Download } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
@@ -170,13 +171,25 @@ export default function UserManagement() {
   });
 
   const getUserRoles = (user) => {
+    const systemRole = user.role || 'customer';
+    const roleLabels = {
+      'customer': 'Customer',
+      'delivery': 'Delivery Partner',
+      'admin': 'Administrator'
+    };
+    
+    const systemRoleLabel = roleLabels[systemRole] || 'Customer';
+    
     if (!user.assigned_role_ids || user.assigned_role_ids.length === 0) {
-      return user.role === 'admin' ? ['Admin'] : ['Customer'];
+      return [systemRoleLabel];
     }
-    return user.assigned_role_ids.map(roleId => {
+    
+    const additionalRoles = user.assigned_role_ids.map(roleId => {
       const role = roles.find(r => r.id === roleId);
       return role ? role.name : 'Unknown';
     });
+    
+    return [systemRoleLabel, ...additionalRoles];
   };
 
   const calculateUserStats = (userId) => {
@@ -500,8 +513,93 @@ export default function UserManagement() {
                     <CardContent className="p-6">
                       <div className="space-y-4">
                         <div>
-                          <Label className="text-sm font-medium">System Role</Label>
-                          <Badge className="mt-2">{selectedUser.role === 'admin' ? 'Administrator' : 'Customer'}</Badge>
+                          <Label className="text-sm font-medium mb-2 block">System Role</Label>
+                          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                            <Shield className="w-5 h-5 text-emerald-600" />
+                            <div className="flex-1">
+                              <p className="font-medium">
+                                {selectedUser.role === 'admin' ? 'Administrator' : 
+                                 selectedUser.role === 'delivery' ? 'Delivery Partner' : 
+                                 'Customer'}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                {selectedUser.role === 'admin' ? 'Full system access' : 
+                                 selectedUser.role === 'delivery' ? 'Can manage deliveries' : 
+                                 'Regular customer account'}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {selectedUser.role !== 'customer' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await User.update(selectedUser.id, { role: 'customer' });
+                                      await base44.entities.Notification.create({
+                                        user_id: selectedUser.id,
+                                        title: "Role Updated",
+                                        message: "Your system role has been changed to Customer",
+                                        type: "info"
+                                      });
+                                      loadData();
+                                      setSelectedUser({ ...selectedUser, role: 'customer' });
+                                    } catch (error) {
+                                      console.error("Error updating role:", error);
+                                    }
+                                  }}
+                                >
+                                  Set as Customer
+                                </Button>
+                              )}
+                              {selectedUser.role !== 'delivery' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await User.update(selectedUser.id, { role: 'delivery' });
+                                      await base44.entities.Notification.create({
+                                        user_id: selectedUser.id,
+                                        title: "Role Updated",
+                                        message: "Your system role has been changed to Delivery Partner",
+                                        type: "info"
+                                      });
+                                      loadData();
+                                      setSelectedUser({ ...selectedUser, role: 'delivery' });
+                                    } catch (error) {
+                                      console.error("Error updating role:", error);
+                                    }
+                                  }}
+                                >
+                                  Set as Delivery
+                                </Button>
+                              )}
+                              {selectedUser.role !== 'admin' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await User.update(selectedUser.id, { role: 'admin' });
+                                      await base44.entities.Notification.create({
+                                        user_id: selectedUser.id,
+                                        title: "Role Updated",
+                                        message: "Your system role has been changed to Administrator",
+                                        type: "info"
+                                      });
+                                      loadData();
+                                      setSelectedUser({ ...selectedUser, role: 'admin' });
+                                    } catch (error) {
+                                      console.error("Error updating role:", error);
+                                    }
+                                  }}
+                                >
+                                  Set as Admin
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
                         {roles.length > 0 && (
@@ -517,7 +615,7 @@ export default function UserManagement() {
                                       <p className="text-sm text-gray-600">{role.description}</p>
                                     </div>
                                     <Button
-                                      variant={hasRole ? "default" : "outline"}
+                                      variant={hasRole ? "destructive" : "default"}
                                       size="sm"
                                       onClick={() => toggleUserRole(selectedUser.id, role.id)}
                                     >

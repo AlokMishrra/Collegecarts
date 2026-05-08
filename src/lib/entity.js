@@ -85,7 +85,7 @@ export class Entity {
     
     // Determine the correct updated timestamp column name
     // Tables without an updated_at/updated_date column must be excluded.
-    const NO_TIMESTAMP_TABLES = ['subscriptions', 'loyalty_transactions', 'campaign_usage', 'referrals', 'wishlists', 'wallet_transactions', 'chat_messages', 'knowledge_articles', 'gamification', 'onboarding_progress', 'admin_activity_log', 'shifts', 'hostels', 'delivery_queries', 'error_logs', 'reviews'];
+    const NO_TIMESTAMP_TABLES = ['subscriptions', 'loyalty_transactions', 'campaign_usage', 'referrals', 'wishlists', 'wallet_transactions', 'chat_messages', 'knowledge_articles', 'gamification', 'onboarding_progress', 'admin_activity_log', 'shifts', 'hostels', 'delivery_queries', 'error_logs', 'reviews', 'categories'];
     
     let timestampPatch = {};
     if (this.table === 'support_tickets' || this.table === 'support_ticket_comments') {
@@ -176,6 +176,15 @@ export class Entity {
     // Special handling for support_tickets table which uses created_date
     if (this.table === 'support_tickets' || this.table === 'support_ticket_comments') {
       return row; // Return as-is, already has created_date
+    }
+    
+    // Special handling for users table - ensure role defaults to 'customer'
+    if (this.table === 'users') {
+      return {
+        ...row,
+        role: row.role || 'customer', // Default to customer if no role set
+        created_date: row.created_at, // backward compat alias
+      };
     }
     
     return {

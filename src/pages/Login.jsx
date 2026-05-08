@@ -145,8 +145,23 @@ export default function Login() {
 
   // Redirect if already logged in
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate(from, { replace: true });
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        // Check user role and redirect accordingly
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (userData?.role === 'delivery') {
+          navigate('/Delivery', { replace: true });
+        } else if (userData?.role === 'admin') {
+          navigate('/CCA', { replace: true });
+        } else {
+          navigate(from, { replace: true });
+        }
+      }
     });
   }, []); // eslint-disable-line
 
@@ -182,7 +197,21 @@ export default function Login() {
       if (err) throw err;
       if (data?.session) {
         await ensureProfile(data.session.user);
-        navigate(from, { replace: true });
+        
+        // Check user role and redirect accordingly
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', data.session.user.id)
+          .single();
+        
+        if (userData?.role === 'delivery') {
+          navigate('/Delivery', { replace: true });
+        } else if (userData?.role === 'admin') {
+          navigate('/CCA', { replace: true });
+        } else {
+          navigate(from, { replace: true });
+        }
       }
     } catch (err) {
       setError(err.message);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { User } from "@/entities/User";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ export default function RoleManagement() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, role: null });
   const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -47,15 +49,22 @@ export default function RoleManagement() {
   }, []);
 
   const loadData = async () => {
+    setIsLoading(true);
     try {
+      console.log('Loading roles and users...');
       const [rolesData, usersData] = await Promise.all([
         base44.entities.Role.list(),
-        base44.entities.User.list()
+        User.list('-created_at')
       ]);
+      console.log('Roles loaded:', rolesData.length);
+      console.log('Users loaded:', usersData.length, usersData);
       setRoles(rolesData);
       setUsers(usersData);
     } catch (error) {
       console.error("Error loading data:", error);
+      console.error("Error details:", error.message, error.stack);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -98,7 +107,7 @@ export default function RoleManagement() {
 
   const handleAssignRole = async (userId, roleIds) => {
     try {
-      await base44.entities.User.update(userId, { assigned_role_ids: roleIds });
+      await User.update(userId, { assigned_role_ids: roleIds });
       await loadData();
     } catch (error) {
       console.error("Error assigning role:", error);
@@ -282,31 +291,45 @@ export default function RoleManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.filter(u => u.role !== 'admin').map(user => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.full_name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {roles.map(role => (
-                        <div key={role.id} className="flex items-center gap-2">
-                          <Checkbox
-                            id={`${user.id}-${role.id}`}
-                            checked={user.assigned_role_ids?.includes(role.id) || false}
-                            onCheckedChange={() => toggleUserRole(user, role.id)}
-                          />
-                          <label htmlFor={`${user.id}-${role.id}`} className="text-sm cursor-pointer">
-                            {role.name}
-                          </label>
-                        </div>
-                      ))}
-                      {(!user.assigned_role_ids || user.assigned_role_ids.length === 0) && (
-                        <span className="text-sm text-gray-500">No roles assigned</span>
-                      )}
-                    </div>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    Loading users...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center py-8 text-gray-500">
+                    No users found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredUsers.filter(u => u.role !== 'admin').map(user => (
+                  <TableRow key={user.id}>
+                    <TableCell>{user.full_name || 'No name'}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        {roles.map(role => (
+                          <div key={role.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`${user.id}-${role.id}`}
+                              checked={user.assigned_role_ids?.includes(role.id) || false}
+                              onCheckedChange={() => toggleUserRole(user, role.id)}
+                            />
+                            <label htmlFor={`${user.id}-${role.id}`} className="text-sm cursor-pointer">
+                              {role.name}
+                            </label>
+                          </div>
+                        ))}
+                        {(!user.assigned_role_ids || user.assigned_role_ids.length === 0) && (
+                          <span className="text-sm text-gray-500">No roles assigned</span>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Phone } from "lucide-react";
 
-const HOSTELS = ["Mithali", "Gavaskar", "Virat", "Tendulkar", "Other", "All"];
-
 export default function DeliveryPersonForm({ person, onSave, onCancel }) {
+  const [hostels, setHostels] = useState([]);
+  const [isLoadingHostels, setIsLoadingHostels] = useState(true);
+  
   const [formData, setFormData] = useState({
     name: person?.name || "",
     email: person?.email || "",
@@ -18,6 +20,35 @@ export default function DeliveryPersonForm({ person, onSave, onCancel }) {
     assigned_hostel: person?.assigned_hostel || "All",
     is_available: person?.is_available ?? true
   });
+
+  // Load hostels from Base44
+  useEffect(() => {
+    const loadHostels = async () => {
+      try {
+        const defaultHostels = ["Mithali", "Gavaskar", "Virat", "Tendulkar"];
+        
+        try {
+          const hostelData = await base44.entities.Hostel.list();
+          const additionalHostels = hostelData
+            .filter(h => h.is_active !== false)
+            .filter(h => !defaultHostels.includes(h.name))
+            .map(h => h.name);
+          
+          // Include default hostels, additional hostels, "Other", and "All"
+          const allHostels = [...defaultHostels, ...additionalHostels, "Other", "All"];
+          setHostels(allHostels);
+        } catch (error) {
+          console.error("Error loading hostels:", error);
+          // Fallback to default hostels
+          setHostels([...defaultHostels, "Other", "All"]);
+        }
+      } finally {
+        setIsLoadingHostels(false);
+      }
+    };
+
+    loadHostels();
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -97,11 +128,15 @@ export default function DeliveryPersonForm({ person, onSave, onCancel }) {
           <Select value={formData.assigned_hostel} onValueChange={v => set("assigned_hostel", v)}>
             <SelectTrigger><SelectValue placeholder="Select hostel" /></SelectTrigger>
             <SelectContent>
-              {HOSTELS.map(h => (
-                <SelectItem key={h} value={h}>
-                  {h === "All" ? "All Hostels (No restriction)" : h}
-                </SelectItem>
-              ))}
+              {isLoadingHostels ? (
+                <SelectItem value="loading" disabled>Loading hostels...</SelectItem>
+              ) : (
+                hostels.map(h => (
+                  <SelectItem key={h} value={h}>
+                    {h === "All" ? "All Hostels (No restriction)" : h}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
           <p className="text-xs text-gray-400 mt-1">Partner can only accept orders from this hostel</p>

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,52 @@ import { useDialog } from "@/components/ui/alert-dialog-custom";
 export default function ProductForm({ product, categories, onSave, onCancel }) {
   const { warning } = useDialog();
   const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [hostels, setHostels] = useState([]);
+  const [isLoadingHostels, setIsLoadingHostels] = useState(true);
+
+  // Load hostels from Base44
+  useEffect(() => {
+    const loadHostels = async () => {
+      try {
+        // Default hostels
+        const defaultHostels = ["Mithali", "Gavaskar", "Virat", "Tendulkar"];
+        
+        try {
+          // Fetch additional hostels from Base44
+          const hostelData = await base44.entities.Hostel.list();
+          const additionalHostels = hostelData
+            .filter(h => h.is_active !== false)
+            .filter(h => !defaultHostels.includes(h.name))
+            .map(h => h.name);
+          
+          // Merge default with additional hostels, always include "Other" at the end
+          const allHostels = [...defaultHostels, ...additionalHostels, "Other"];
+          setHostels(allHostels);
+        } catch (error) {
+          console.error("Error loading hostels:", error);
+          // Fallback to default hostels
+          setHostels([...defaultHostels, "Other"]);
+        }
+      } finally {
+        setIsLoadingHostels(false);
+      }
+    };
+
+    loadHostels();
+  }, []);
+
+  // Initialize hostel_stock with all hostels
+  const initializeHostelStock = () => {
+    const stock = product?.hostel_stock || {};
+    const initialStock = {};
+    
+    // Ensure all hostels have a stock value
+    hostels.forEach(hostel => {
+      initialStock[hostel] = stock[hostel] || 0;
+    });
+    
+    return initialStock;
+  };
   // Convert 12-hour format to 24-hour for input, and vice versa
   const convert12to24 = (time12) => {
     if (!time12) return "";
@@ -62,13 +109,7 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
     category_id: product?.category_id || "",
     image_url: product?.image_url || "",
     stock_quantity: product?.stock_quantity || 0,
-    hostel_stock: product?.hostel_stock || {
-      Mithali: 0,
-      Gavaskar: 0,
-      Virat: 0,
-      Tendulkar: 0,
-      Other: 0
-    },
+    hostel_stock: {},
     dhaba_options: product?.dhaba_options || [],
     source_dhaba: product?.source_dhaba || "",
     unit: product?.unit || "piece",
@@ -79,6 +120,17 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
     available_from: convert12to24(product?.available_from || ""),
     available_to: convert12to24(product?.available_to || "")
   });
+
+  // Update hostel_stock when hostels are loaded
+  // Update hostel_stock when hostels are loaded
+  useEffect(() => {
+    if (!isLoadingHostels && hostels.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        hostel_stock: initializeHostelStock()
+      }));
+    }
+  }, [isLoadingHostels, hostels]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,18 +153,18 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
     
     const totalStock = parseInt(formData.stock_quantity);
 
+    // Build hostel_stock dynamically from all hostels
+    const hostelStockData = {};
+    hostels.forEach(hostel => {
+      hostelStockData[hostel] = formData.hostel_stock[hostel] !== "" ? parseInt(formData.hostel_stock[hostel]) : 0;
+    });
+
     const productData = {
       ...formData,
       price: parseFloat(formData.price),
       original_price: formData.original_price ? parseFloat(formData.original_price) : null,
       stock_quantity: totalStock,
-      hostel_stock: {
-        Mithali: formData.hostel_stock.Mithali !== "" ? parseInt(formData.hostel_stock.Mithali) : 0,
-        Gavaskar: formData.hostel_stock.Gavaskar !== "" ? parseInt(formData.hostel_stock.Gavaskar) : 0,
-        Virat: formData.hostel_stock.Virat !== "" ? parseInt(formData.hostel_stock.Virat) : 0,
-        Tendulkar: formData.hostel_stock.Tendulkar !== "" ? parseInt(formData.hostel_stock.Tendulkar) : 0,
-        Other: formData.hostel_stock.Other !== "" ? parseInt(formData.hostel_stock.Other) : 0
-      },
+      hostel_stock: hostelStockData,
       dhaba_options: formData.dhaba_options.map(opt => ({
         dhaba_name: opt.dhaba_name,
         price: parseFloat(opt.price)
@@ -237,53 +289,23 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
 
           <div>
             <Label className="mb-3 block">Hostel-wise Stock</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="mithali" className="text-sm">Mithali Hostel</Label>
-                <Input
-                  id="mithali"
-                  type="number"
-                  value={formData.hostel_stock.Mithali}
-                  onChange={(e) => handleHostelStockChange("Mithali", e.target.value)}
-                />
+            {isLoadingHostels ? (
+              <div className="text-sm text-gray-500">Loading hostels...</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {hostels.map((hostel) => (
+                  <div key={hostel}>
+                    <Label htmlFor={hostel.toLowerCase()} className="text-sm">{hostel} {hostel !== "Other" && "Hostel"}</Label>
+                    <Input
+                      id={hostel.toLowerCase()}
+                      type="number"
+                      value={formData.hostel_stock[hostel] || 0}
+                      onChange={(e) => handleHostelStockChange(hostel, e.target.value)}
+                    />
+                  </div>
+                ))}
               </div>
-              <div>
-                <Label htmlFor="gavaskar" className="text-sm">Gavaskar Hostel</Label>
-                <Input
-                  id="gavaskar"
-                  type="number"
-                  value={formData.hostel_stock.Gavaskar}
-                  onChange={(e) => handleHostelStockChange("Gavaskar", e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="virat" className="text-sm">Virat Hostel</Label>
-                <Input
-                  id="virat"
-                  type="number"
-                  value={formData.hostel_stock.Virat}
-                  onChange={(e) => handleHostelStockChange("Virat", e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="tendulkar" className="text-sm">Tendulkar Hostel</Label>
-                <Input
-                  id="tendulkar"
-                  type="number"
-                  value={formData.hostel_stock.Tendulkar}
-                  onChange={(e) => handleHostelStockChange("Tendulkar", e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="other" className="text-sm">Other</Label>
-                <Input
-                  id="other"
-                  type="number"
-                  value={formData.hostel_stock.Other}
-                  onChange={(e) => handleHostelStockChange("Other", e.target.value)}
-                />
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

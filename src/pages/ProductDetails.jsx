@@ -118,7 +118,7 @@ export default function ProductDetails() {
   const toggleWishlist = async () => {
     try {
       if (!user) {
-        window.location.href = '/login';
+        navigate('/login');
         return;
       }
 
@@ -216,7 +216,7 @@ export default function ProductDetails() {
 
   const addToCart = async () => {
     if (!user) {
-      window.location.href = '/login';
+      navigate('/login');
       return;
     }
 

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { User } from "@/entities/User";
+import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Building2, Check, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,14 +9,62 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function HostelSelector({ onHostelSelected, onClose, currentHostel }) {
   const [selectedHostel, setSelectedHostel] = useState(currentHostel || null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hostels, setHostels] = useState([]);
+  const [isLoadingHostels, setIsLoadingHostels] = useState(true);
 
-  const hostels = [
-    { id: "Mithali",    name: "Mithali Hostel",   icon: "🏠" },
-    { id: "Gavaskar",   name: "Gavaskar Hostel",   icon: "🏢" },
-    { id: "Virat",      name: "Virat Hostel",      icon: "🏛️" },
-    { id: "Tendulkar",  name: "Tendulkar Hostel",  icon: "🏘️" },
-    { id: "Other",      name: "Other Location",    icon: "📍" },
-  ];
+  // Fetch hostels from Base44
+  useEffect(() => {
+    const loadHostels = async () => {
+      try {
+        // Default hostels that should always be available
+        const defaultHostels = [
+          { id: "Mithali", name: "Mithali Hostel", icon: "🏠" },
+          { id: "Gavaskar", name: "Gavaskar Hostel", icon: "🏢" },
+          { id: "Virat", name: "Virat Hostel", icon: "🏛️" },
+          { id: "Tendulkar", name: "Tendulkar Hostel", icon: "🏘️" },
+        ];
+
+        try {
+          // Fetch additional hostels from Base44
+          const hostelData = await base44.entities.Hostel.list();
+          const additionalHostels = hostelData
+            .filter(h => h.is_active !== false)
+            .filter(h => !["Mithali", "Gavaskar", "Virat", "Tendulkar"].includes(h.name))
+            .map(h => ({
+              id: h.name,
+              name: `${h.name} Hostel`,
+              icon: "🏠"
+            }));
+          
+          // Merge default hostels with additional ones
+          const allHostels = [...defaultHostels, ...additionalHostels];
+          
+          // Add "Other" option at the end
+          allHostels.push({ id: "Other", name: "Other Location", icon: "📍" });
+          
+          setHostels(allHostels);
+        } catch (error) {
+          console.error("Error loading additional hostels:", error);
+          // If Base44 fetch fails, just use default hostels
+          setHostels([...defaultHostels, { id: "Other", name: "Other Location", icon: "📍" }]);
+        }
+      } catch (error) {
+        console.error("Error setting up hostels:", error);
+        // Ultimate fallback
+        setHostels([
+          { id: "Mithali", name: "Mithali Hostel", icon: "🏠" },
+          { id: "Gavaskar", name: "Gavaskar Hostel", icon: "🏢" },
+          { id: "Virat", name: "Virat Hostel", icon: "🏛️" },
+          { id: "Tendulkar", name: "Tendulkar Hostel", icon: "🏘️" },
+          { id: "Other", name: "Other Location", icon: "📍" },
+        ]);
+      } finally {
+        setIsLoadingHostels(false);
+      }
+    };
+
+    loadHostels();
+  }, []);
 
   const handleSubmit = async () => {
     if (!selectedHostel) return;
@@ -115,52 +164,68 @@ export default function HostelSelector({ onHostelSelected, onClose, currentHoste
 
           {/* Hostel List */}
           <div style={{ padding: "16px 24px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {hostels.map((hostel) => {
-                const isSelected = selectedHostel === hostel.id;
-                return (
-                  <button
-                    key={hostel.id}
-                    onClick={() => setSelectedHostel(hostel.id)}
+            {isLoadingHostels ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "14px 16px",
+                      height: "56px",
                       borderRadius: "12px",
-                      border: isSelected ? "2px solid #059669" : "2px solid #e5e7eb",
-                      backgroundColor: isSelected ? "#f0fdf4" : "#fff",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      textAlign: "left",
-                      width: "100%",
+                      backgroundColor: "#f3f4f6",
+                      animation: "pulse 1.5s ease-in-out infinite",
                     }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <span style={{ fontSize: "24px", lineHeight: 1 }}>{hostel.icon}</span>
-                      <span style={{
-                        fontSize: "15px",
-                        fontWeight: isSelected ? "600" : "500",
-                        color: isSelected ? "#065f46" : "#374151",
-                      }}>
-                        {hostel.name}
-                      </span>
-                    </div>
-                    {isSelected && (
-                      <div style={{
-                        width: "22px", height: "22px",
-                        backgroundColor: "#059669",
-                        borderRadius: "50%",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        flexShrink: 0,
-                      }}>
-                        <Check size={13} color="#fff" strokeWidth={3} />
+                  />
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {hostels.map((hostel) => {
+                  const isSelected = selectedHostel === hostel.id;
+                  return (
+                    <button
+                      key={hostel.id}
+                      onClick={() => setSelectedHostel(hostel.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "14px 16px",
+                        borderRadius: "12px",
+                        border: isSelected ? "2px solid #059669" : "2px solid #e5e7eb",
+                        backgroundColor: isSelected ? "#f0fdf4" : "#fff",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                        textAlign: "left",
+                        width: "100%",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <span style={{ fontSize: "24px", lineHeight: 1 }}>{hostel.icon}</span>
+                        <span style={{
+                          fontSize: "15px",
+                          fontWeight: isSelected ? "600" : "500",
+                          color: isSelected ? "#065f46" : "#374151",
+                        }}>
+                          {hostel.name}
+                        </span>
                       </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                      {isSelected && (
+                        <div style={{
+                          width: "22px", height: "22px",
+                          backgroundColor: "#059669",
+                          borderRadius: "50%",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0,
+                        }}>
+                          <Check size={13} color="#fff" strokeWidth={3} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Footer */}
