@@ -76,7 +76,7 @@ const CategorySection = memo(function CategorySection({
       </div>
       
       <div className="relative">
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory -webkit-overflow-scrolling-touch">
+        <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory -webkit-overflow-scrolling-touch product-scroll">
           {sortedProducts.map((product) => {
             const cartQty = getCartQuantity(product.id);
             const hasDiscount = product.original_price && product.original_price > product.price;
