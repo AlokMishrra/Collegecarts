@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useRef, useEffect } from "react";
 import { ChevronRight, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -29,6 +29,8 @@ const CategorySection = memo(function CategorySection({
   onAddToCart, onUpdateQuantity, getCartQuantity,
   getHostelStock, isProductInStock,
 }) {
+  // Ref for scroll container to reset scroll position
+  const scrollContainerRef = useRef(null);
 
   // getHostelStock and isProductInStock are always passed from Shop.jsx
   // which has the user context. These fallbacks are only for safety.
@@ -39,6 +41,13 @@ const CategorySection = memo(function CategorySection({
   const getStock = getHostelStock || ((product) => {
     return product.stock_quantity || 0;
   });
+
+  // Reset scroll position to show in-stock items first
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = 0;
+    }
+  }, [products]);
   
   if (!products || products.length === 0) {
     return (
@@ -76,13 +85,17 @@ const CategorySection = memo(function CategorySection({
       </div>
       
       <div className="relative">
-        <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory -webkit-overflow-scrolling-touch product-scroll">
+        <div 
+          ref={scrollContainerRef}
+          className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory -webkit-overflow-scrolling-touch product-scroll"
+        >
           {sortedProducts.map((product) => {
             const cartQty = getCartQuantity(product.id);
             const hasDiscount = product.original_price && product.original_price > product.price;
             const hostelStock = getStock(product);
             const inStock = checkProductInStock(product);
             const isOutOfStock = !inStock;
+            const isMaxStock = cartQty >= hostelStock; // Check if max stock reached
             
             return (
               <div
@@ -134,39 +147,49 @@ const CategorySection = memo(function CategorySection({
                       ) : cartQty > 0 ? (
                         <div className="flex items-center justify-between bg-emerald-50 rounded-lg px-2 py-1">
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.preventDefault();
-                              if (onUpdateQuantity) {
-                                onUpdateQuantity(product, -1);
-                              }
+                              e.stopPropagation();
+                              onUpdateQuantity?.(product, -1);
                             }}
-                            className="w-6 h-6 flex items-center justify-center text-emerald-600 font-bold active:scale-90"
+                            className="w-6 h-6 flex items-center justify-center text-emerald-600 font-bold active:scale-90 transition-transform hover:bg-emerald-100 rounded touch-manipulation"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
                           >
-                            -
+                            −
                           </button>
-                          <span className="font-semibold text-emerald-600">{cartQty}</span>
+                          <span className="font-semibold text-emerald-600 min-w-[20px] text-center select-none">{cartQty}</span>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.preventDefault();
-                              if (onUpdateQuantity) {
-                                onUpdateQuantity(product, 1);
-                              } else {
-                                onAddToCart(product);
+                              e.stopPropagation();
+                              if (!isMaxStock) {
+                                onUpdateQuantity?.(product, 1);
                               }
                             }}
-                            className="w-6 h-6 flex items-center justify-center text-emerald-600 font-bold active:scale-90"
+                            disabled={isMaxStock}
+                            className={`w-6 h-6 flex items-center justify-center font-bold transition-transform rounded touch-manipulation ${
+                              isMaxStock 
+                                ? 'text-gray-400 cursor-not-allowed' 
+                                : 'text-emerald-600 active:scale-90 hover:bg-emerald-100'
+                            }`}
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
                           >
                             +
                           </button>
                         </div>
                       ) : (
                         <Button
+                          type="button"
                           onClick={(e) => {
                             e.preventDefault();
-                            onAddToCart(product);
+                            e.stopPropagation();
+                            onAddToCart?.(product);
                           }}
                           size="sm"
-                          className="w-full bg-white border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white h-8 text-xs font-semibold active:scale-95"
+                          className="w-full bg-white border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white h-8 text-xs font-semibold active:scale-95 transition-transform touch-manipulation"
+                          style={{ WebkitTapHighlightColor: 'transparent' }}
                         >
                           ADD
                         </Button>

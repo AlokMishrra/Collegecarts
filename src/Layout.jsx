@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { User } from "@/entities/User";
@@ -22,6 +22,33 @@ import FeedbackPopup from "./components/shop/FeedbackPopup";
 import AIAssistant from "./components/chat/AIAssistant";
 import InAppChat from "./components/chat/InAppChat";
 
+// Memoized navigation item component to prevent unnecessary re-renders
+const NavigationItem = memo(({ item, isActive, onClick }) => {
+  return (
+    <Link
+      to={item.url}
+      onClick={onClick}
+      className={`
+        flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
+        ${isActive
+          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+        }
+      `}
+    >
+      <item.icon className="w-5 h-5" />
+      <span className="font-medium">{item.title}</span>
+      {item.badge && (
+        <Badge className="ml-auto bg-emerald-500 text-white">
+          {item.badge}
+        </Badge>
+      )}
+    </Link>
+  );
+});
+
+NavigationItem.displayName = 'NavigationItem';
+
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -33,30 +60,23 @@ export default function Layout({ children, currentPageName }) {
   const [userRole, setUserRole] = useState(null);
   const [cartItemCount, setCartItemCount] = useState(0);
 
-  useEffect(() => {
-    checkUser();
-    checkDeliveryPartner();
-  }, []);
+  // Memoize expensive computations
+  const hasMultipleRoles = useMemo(() => 
+    user?.assigned_role_ids && user.assigned_role_ids.length > 1,
+    [user?.assigned_role_ids]
+  );
 
-  useEffect(() => {
-    if (user) {
-      loadCartCount();
-    }
-  }, [user]);
+  const isDeliveryOnlyRole = useMemo(() => 
+    !hasMultipleRoles && userRole && (
+      userRole.name.toLowerCase().includes("delivery") ||
+      userRole.permissions?.includes("view_delivery_portal")
+    ),
+    [hasMultipleRoles, userRole]
+  );
 
-  // Listen for cart updates from other components
-  useEffect(() => {
-    const handleCartUpdate = () => {
-      if (user) {
-        loadCartCount();
-      }
-    };
-
-    window.addEventListener('cartUpdated', handleCartUpdate);
-    return () => window.removeEventListener('cartUpdated', handleCartUpdate);
-  }, [user]);
-
-  const loadCartCount = async () => {
+  // Memoize callbacks to prevent unnecessary re-renders
+  const loadCartCount = useCallback(async () => {
+    if (!user?.id) return;
     try {
       const cartItems = await base44.entities.CartItem.filter({ user_id: user.id });
       const totalCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -64,9 +84,9 @@ export default function Layout({ children, currentPageName }) {
     } catch (error) {
       console.error("Error loading cart count:", error);
     }
-  };
+  }, [user?.id]);
 
-  const checkUser = async () => {
+  const checkUser = useCallback(async () => {
     try {
       const currentUser = await User.me();
       setUser(currentUser);
@@ -87,28 +107,51 @@ export default function Layout({ children, currentPageName }) {
     } catch (error) {
       // User not logged in
     }
-  };
+  }, []);
 
-  const checkDeliveryPartner = () => {
+  const checkDeliveryPartner = useCallback(() => {
     const savedDeliveryPerson = localStorage.getItem('deliveryPerson');
     setIsDeliveryPartner(!!savedDeliveryPerson);
-  };
+  }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await User.logout();
     setUser(null);
-  };
+  }, []);
 
-  // Check if user has multiple roles
-  const hasMultipleRoles = user?.assigned_role_ids && user.assigned_role_ids.length > 1;
+  const closeSidebar = useCallback(() => {
+    setIsSidebarOpen(false);
+  }, []);
 
-  // Check if user is a delivery person (single role only)
-  const isDeliveryOnlyRole = !hasMultipleRoles && userRole && (
-    userRole.name.toLowerCase().includes("delivery") ||
-    userRole.permissions?.includes("view_delivery_portal")
-  );
+  const openSidebar = useCallback(() => {
+    setIsSidebarOpen(true);
+  }, []);
 
-  const navigationItems = [
+  useEffect(() => {
+    checkUser();
+    checkDeliveryPartner();
+  }, [checkUser, checkDeliveryPartner]);
+
+  useEffect(() => {
+    if (user) {
+      loadCartCount();
+    }
+  }, [user]);
+
+  // Listen for cart updates from other components
+  useEffect(() => {
+    const handleCartUpdate = () => {
+      if (user) {
+        loadCartCount();
+      }
+    };
+
+    window.addEventListener('cartUpdated', handleCartUpdate);
+    return () => window.removeEventListener('cartUpdated', handleCartUpdate);
+  }, [user, loadCartCount]);
+
+  // Memoize navigation items to prevent recreation on every render
+  const navigationItems = useMemo(() => [
     {
       title: "Shop",
       url: createPageUrl("Shop"),
@@ -165,9 +208,9 @@ export default function Layout({ children, currentPageName }) {
         return isDeliveryOnlyRole || (hasMultipleRoles && userRole?.permissions?.includes("view_delivery_portal"));
       }
     }
-  ];
+  ], [cartCount, isDeliveryOnlyRole, user?.role, userHasRole, hasMultipleRoles, userRole?.permissions]);
 
-  const isActive = (url) => location.pathname === url;
+  const isActive = useCallback((url) => location.pathname === url, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -176,7 +219,7 @@ export default function Layout({ children, currentPageName }) {
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsSidebarOpen(true)}
+              onClick={openSidebar}
               style={{ background: 'none', border: 'none', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', minWidth: '40px', minHeight: '40px' }}
             >
               <Menu className="w-5 h-5 text-gray-700" />
@@ -246,7 +289,7 @@ export default function Layout({ children, currentPageName }) {
                 <span className="font-bold text-emerald-600">Menu</span>
               </div>
               <button
-                onClick={() => setIsSidebarOpen(false)}
+                onClick={closeSidebar}
                 style={{ background: 'none', border: 'none', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderRadius: '8px' }}
               >
                 <X className="w-5 h-5 text-gray-600" />
@@ -261,26 +304,12 @@ export default function Layout({ children, currentPageName }) {
                 if (!item.showCondition()) return null;
 
                 return (
-                  <Link
+                  <NavigationItem
                     key={item.title}
-                    to={item.url}
-                    onClick={() => setIsSidebarOpen(false)}
-                    className={`
-                      flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
-                      ${isActive(item.url)
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }
-                    `}
-                  >
-                    <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.title}</span>
-                    {item.badge && (
-                      <Badge className="ml-auto bg-emerald-500 text-white">
-                        {item.badge}
-                      </Badge>
-                    )}
-                  </Link>
+                    item={item}
+                    isActive={isActive(item.url)}
+                    onClick={closeSidebar}
+                  />
                 );
               })}
             </nav>
@@ -325,7 +354,7 @@ export default function Layout({ children, currentPageName }) {
         {isSidebarOpen && (
           <div
             className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-[9998]"
-            onClick={() => setIsSidebarOpen(false)}
+            onClick={closeSidebar}
           />
         )}
 

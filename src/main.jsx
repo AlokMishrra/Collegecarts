@@ -2,6 +2,16 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
+import { initPerformanceMonitoring } from '@/utils/performanceMonitor'
+
+// ═══════════════════════════════════════════════════════════════
+// PERFORMANCE MONITORING
+// ═══════════════════════════════════════════════════════════════
+
+// Initialize performance tracking
+if (typeof window !== 'undefined') {
+  initPerformanceMonitoring();
+}
 
 // ═══════════════════════════════════════════════════════════════
 // MOBILE SCROLL PERFORMANCE OPTIMIZATION

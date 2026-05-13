@@ -215,44 +215,54 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
         ) : cartQuantity > 0 ? (
           <div className="flex items-center gap-2 bg-emerald-50 rounded-xl p-1">
             <Button
+              type="button"
               size="sm"
               variant="ghost"
               onClick={(e) => {
                 e.preventDefault();
-                if (onUpdateQuantity) {
-                  onUpdateQuantity(product, -1);
-                }
+                e.stopPropagation();
+                onUpdateQuantity?.(product, -1);
               }}
-              className="flex-1 hover:bg-emerald-100 rounded-lg h-9 font-bold text-emerald-700"
+              className="flex-1 hover:bg-emerald-100 rounded-lg h-9 font-bold text-emerald-700 transition-transform active:scale-90 touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               −
             </Button>
             <div className="flex items-center justify-center min-w-[2.5rem]">
-              <span className="font-bold text-emerald-700">{cartQuantity}</span>
+              <span className="font-bold text-emerald-700 select-none">{cartQuantity}</span>
             </div>
             <Button
+              type="button"
               size="sm"
               onClick={(e) => {
                 e.preventDefault();
-                if (onUpdateQuantity) {
-                  onUpdateQuantity(product, 1);
-                } else {
-                  onAddToCart(product);
+                e.stopPropagation();
+                if (cartQuantity < hostelStock) {
+                  onUpdateQuantity?.(product, 1);
                 }
               }}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 rounded-lg h-9 font-bold"
+              disabled={cartQuantity >= hostelStock}
+              className={`flex-1 rounded-lg h-9 font-bold transition-transform touch-manipulation ${
+                cartQuantity >= hostelStock
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700 active:scale-90'
+              }`}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               +
             </Button>
           </div>
         ) : (
           <Button
+            type="button"
             size="sm"
             onClick={(e) => {
               e.preventDefault();
-              onAddToCart(product);
+              e.stopPropagation();
+              onAddToCart?.(product);
             }}
-            className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 rounded-xl h-10 font-semibold shadow-md hover:shadow-lg transition-all"
+            className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 rounded-xl h-10 font-semibold shadow-md hover:shadow-lg transition-all active:scale-95 touch-manipulation"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             ADD TO CART
           </Button>

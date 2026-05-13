@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSEO } from "@/lib/useSEO";
 import { base44 } from "@/api/base44Client";
 import { CartItem } from "@/entities/CartItem";
@@ -30,7 +31,8 @@ import ComboSection        from "../components/shop/ComboSection";
 // ── Cart write debounce config ────────────────────────────────────────────
 // Batches rapid +/- taps into a single DB write per product.
 // e.g. user taps + 5 times quickly → 1 DB write with quantity=5
-const CART_DEBOUNCE_MS = 400;
+// Reduced to 150ms for instant feel while still batching
+const CART_DEBOUNCE_MS = 150;
 
 // ── Per-user action rate limit ────────────────────────────────────────────
 // Prevents spam: max N cart actions per window
@@ -38,6 +40,7 @@ const RATE_LIMIT_MAX    = 20;   // max actions
 const RATE_LIMIT_WINDOW = 10_000; // per 10s window
 
 export default function Shop() {
+  const navigate = useNavigate();
   const [products, setProducts]                 = useState([]);
   const [categories, setCategories]             = useState([]);
   const [searchQuery, setSearchQuery]           = useState("");
@@ -310,31 +313,36 @@ export default function Shop() {
     try {
       if (targetQty <= 0 && existingItemId) {
         await CartItem.delete(existingItemId);
+        notifyCartUpdate();
       } else if (existingItemId) {
         await CartItem.update(existingItemId, { quantity: targetQty });
+        notifyCartUpdate();
       } else if (targetQty > 0) {
         const created = await CartItem.create({
           product_id: productId,
           user_id: user.id,
           quantity: targetQty,
         });
-        // Replace temp id with real id
+        // Replace temp id with real id without triggering re-render
         if (created) {
           setCartItems(prev => prev.map(item =>
-            item.id?.toString().startsWith("temp-") && item.product_id === productId
+            item.product_id === productId && item.id?.toString().startsWith("temp-")
               ? { ...item, id: created.id }
               : item
           ));
         }
+        notifyCartUpdate();
       }
-      notifyCartUpdate();
-      // Background sync to confirm DB state
-      setTimeout(() => loadCartItems(user.id), 600);
+      // Silent background sync - don't reload immediately to prevent flicker
+      setTimeout(() => {
+        if (user?.id) loadCartItems(user.id);
+      }, 1000);
     } catch (err) {
       await logErrorToDB("API", err.message, "/shop/cart/write", err.stack).catch(() => {});
       console.error("[Cart] write failed:", err);
-      // Revert optimistic update
-      loadCartItems(user.id);
+      // Only reload on error to revert optimistic update
+      if (user?.id) loadCartItems(user.id);
+      toast.error("Failed to update cart. Please try again.");
     }
   }, [user]);
 
@@ -357,23 +365,34 @@ export default function Shop() {
       return;
     }
 
-    // ── Optimistic UI update ──────────────────────────────────
+    // Don't allow negative quantities
+    if (newQty < 0) return;
+
+    // ── Optimistic UI update (instant, no flicker) ────────────
+    const tempId = "temp-" + Date.now() + "-" + product.id;
+    
     if (newQty <= 0) {
+      // Remove item immediately
       setCartItems(prev => prev.filter(i => i.product_id !== product.id));
+      notifyCartUpdate();
     } else if (existingItem) {
+      // Update existing item immediately
       setCartItems(prev => prev.map(i =>
         i.product_id === product.id ? { ...i, quantity: newQty } : i
       ));
+      notifyCartUpdate();
     } else {
+      // Add new item immediately
       setCartItems(prev => [...prev, {
-        id:           "temp-" + Date.now(),
+        id:           tempId,
         product_id:   product.id,
         user_id:      user.id,
-        quantity:     1,
+        quantity:     newQty,
         product_name: product.name,
         price:        product.price,
         created_date: new Date().toISOString(),
       }]);
+      notifyCartUpdate();
     }
 
     // ── Debounced DB write ────────────────────────────────────
@@ -388,17 +407,26 @@ export default function Shop() {
     );
     pendingCart.current[product.id] = {
       timer,
+      quantity: targetQty,
       existingItemId: existingId,
       flush: () => flushCartWrite(product.id, targetQty, existingId),
     };
-  }, [user, cartItems, getHostelStock, isProductInStock, checkRateLimit, flushCartWrite]);
+  }, [user, cartItems, getHostelStock, isProductInStock, checkRateLimit, flushCartWrite, navigate]);
 
   const addToCart = useCallback(product => updateCartQuantity(product, 1), [updateCartQuantity]);
 
-  const getCartQuantity = useCallback(productId => {
-    const item = cartItems.find(i => i.product_id === productId);
-    return item?.quantity ?? 0;
+  // Memoized cart quantity lookup - prevents repeated array searches
+  const cartQuantityMap = useMemo(() => {
+    const map = new Map();
+    cartItems.forEach(item => {
+      map.set(item.product_id, item.quantity);
+    });
+    return map;
   }, [cartItems]);
+
+  const getCartQuantity = useCallback(productId => {
+    return cartQuantityMap.get(productId) ?? 0;
+  }, [cartQuantityMap]);
 
   // ── Filters + sort ────────────────────────────────────────────────────
   const applyFiltersAndSort = useCallback((list) => {

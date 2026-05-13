@@ -35,6 +35,11 @@ export default function ProductDetails() {
   const [reviewCount, setReviewCount] = useState(0);
   const [isInWishlist, setIsInWishlist] = useState(false);
 
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
+
   useEffect(() => {
     checkUser();
     loadProduct();

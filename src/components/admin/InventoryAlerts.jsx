@@ -1,17 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Package, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle, Package, ChevronDown, ChevronRight, Search, Filter } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function InventoryAlerts() {
   const [lowStockProducts, setLowStockProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [categories, setCategories] = useState({});
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedHostel, setSelectedHostel] = useState("all");
+  const [stockLevel, setStockLevel] = useState("all");
 
   useEffect(() => {
     loadInventoryAlerts();
@@ -51,11 +59,45 @@ export default function InventoryAlerts() {
   };
 
   const getStockLevel = (quantity, threshold) => {
-    if (quantity === 0) return { label: "Out of Stock", color: "bg-red-100 text-red-800" };
-    if (quantity <= threshold / 2) return { label: "Critical", color: "bg-red-100 text-red-800" };
-    if (quantity <= threshold) return { label: "Low Stock", color: "bg-orange-100 text-orange-800" };
-    return { label: "In Stock", color: "bg-green-100 text-green-800" };
+    if (quantity === 0) return { label: "Out of Stock", color: "bg-red-100 text-red-800", level: "out" };
+    if (quantity <= threshold / 2) return { label: "Critical", color: "bg-red-100 text-red-800", level: "critical" };
+    if (quantity <= threshold) return { label: "Low Stock", color: "bg-orange-100 text-orange-800", level: "low" };
+    return { label: "In Stock", color: "bg-green-100 text-green-800", level: "ok" };
   };
+
+  // Hostel list
+  const hostels = ["Mithali", "Gavaskar", "Virat", "Tendulkar"];
+
+  // Filtered products
+  const filteredProducts = useMemo(() => {
+    return lowStockProducts.filter(product => {
+      // Search filter
+      if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+
+      // Category filter
+      if (selectedCategory !== "all" && product.category_id !== selectedCategory) {
+        return false;
+      }
+
+      // Hostel filter
+      if (selectedHostel !== "all") {
+        const hostelStock = product.hostel_stock?.[selectedHostel] || 0;
+        const threshold = product.low_stock_threshold || 10;
+        if (hostelStock > threshold) return false;
+      }
+
+      // Stock level filter
+      if (stockLevel !== "all") {
+        const threshold = product.low_stock_threshold || 10;
+        const mainStockLevel = getStockLevel(product.stock_quantity, threshold);
+        if (mainStockLevel.level !== stockLevel) return false;
+      }
+
+      return true;
+    });
+  }, [lowStockProducts, searchQuery, selectedCategory, selectedHostel, stockLevel]);
 
   if (isLoading) {
     return (
@@ -87,16 +129,102 @@ export default function InventoryAlerts() {
       </CardHeader>
       {isExpanded && (
         <CardContent>
-        {lowStockProducts.length === 0 ? (
-          <Alert className="bg-green-50 border-green-200">
-            <Package className="w-4 h-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              All products are well stocked! No inventory alerts at this time.
+        {/* Filters */}
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Filter className="w-4 h-4" />
+            <span>Filters</span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Category Filter */}
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {Object.values(categories).map(cat => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Hostel Filter */}
+            <Select value={selectedHostel} onValueChange={setSelectedHostel}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Hostels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Hostels</SelectItem>
+                {hostels.map(hostel => (
+                  <SelectItem key={hostel} value={hostel}>
+                    {hostel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Stock Level Filter */}
+            <Select value={stockLevel} onValueChange={setStockLevel}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Levels" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Levels</SelectItem>
+                <SelectItem value="out">Out of Stock</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="low">Low Stock</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Active Filters Summary */}
+          {(searchQuery || selectedCategory !== "all" || selectedHostel !== "all" || stockLevel !== "all") && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600">Showing {filteredProducts.length} of {lowStockProducts.length} products</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("all");
+                  setSelectedHostel("all");
+                  setStockLevel("all");
+                }}
+                className="text-emerald-600 hover:text-emerald-700"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {filteredProducts.length === 0 ? (
+          <Alert className="bg-blue-50 border-blue-200">
+            <Package className="w-4 h-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              {lowStockProducts.length === 0 
+                ? "All products are well stocked! No inventory alerts at this time."
+                : "No products match your filters. Try adjusting your search criteria."}
             </AlertDescription>
           </Alert>
         ) : (
           <div className="space-y-3">
-            {lowStockProducts.map(product => {
+            {filteredProducts.map(product => {
               const threshold = product.low_stock_threshold || 10;
               const mainStockLevel = getStockLevel(product.stock_quantity, threshold);
 

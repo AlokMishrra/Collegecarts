@@ -2,13 +2,14 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Download, FileSpreadsheet, AlertCircle } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function BulkProductImport() {
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const exportToCSV = async () => {
     setIsExporting(true);
@@ -141,12 +142,18 @@ export default function BulkProductImport() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileSpreadsheet className="w-5 h-5" />
-          Bulk Product Import/Export
+      <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="w-5 h-5" />
+            Bulk Product Import/Export
+          </div>
+          <Button variant="ghost" size="icon">
+            {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+          </Button>
         </CardTitle>
       </CardHeader>
+      {isExpanded && (
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Export */}
@@ -220,6 +227,7 @@ export default function BulkProductImport() {
           </Alert>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

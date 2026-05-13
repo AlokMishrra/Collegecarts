@@ -34,6 +34,40 @@ img {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   CART BUTTON OPTIMIZATION - NO FLICKER
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Prevent button flicker on click */
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Smooth transitions for cart buttons */
+button[type="button"] {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* Prevent text selection on quantity display */
+.select-none {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Optimize touch interactions */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SHIMMER ANIMATION & SKELETON LOADERS
    ═══════════════════════════════════════════════════════════════ */
 
