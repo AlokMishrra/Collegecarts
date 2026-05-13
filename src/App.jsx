@@ -1,6 +1,7 @@
 import './App.css'
 import React, { lazy, Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as SonnerToaster } from "sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import VisualEditAgent from '@/lib/VisualEditAgent'
@@ -180,6 +181,7 @@ function App() {
               <ConditionalBottomTabBar />
             </Router>
             <Toaster />
+            <SonnerToaster position="top-center" richColors />
             <VisualEditAgent />
           </QueryClientProvider>
         </AuthProvider>

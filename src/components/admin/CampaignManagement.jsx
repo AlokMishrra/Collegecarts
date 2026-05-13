@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Edit, Trash2, TrendingUp, Users, DollarSign, Bell } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 export default function CampaignManagement() {
   const [campaigns, setCampaigns] = useState([]);
@@ -20,13 +21,13 @@ export default function CampaignManagement() {
     name: "",
     description: "",
     discount_type: "percentage",
-    discount_value: 0,
+    discount_value: "",
     code: "",
     start_date: "",
     end_date: "",
-    usage_limit: 100,
-    usage_per_user: 1,
-    min_order_amount: 0,
+    usage_limit: "",
+    usage_per_user: "",
+    min_order_amount: "",
     is_active: true
   });
 
@@ -46,16 +47,25 @@ export default function CampaignManagement() {
   const handleSubmit = async () => {
     try {
       const campaignData = {
-        ...formData,
+        name: formData.name,
+        description: formData.description || "",
         code: formData.code.toUpperCase(),
+        discount_type: formData.discount_type,
+        discount_value: parseFloat(formData.discount_value) || 0,
+        min_order_amount: parseFloat(formData.min_order_amount) || 0,
+        usage_limit: parseInt(formData.usage_limit) || 100,
+        usage_per_user: parseInt(formData.usage_per_user) || 1,
+        is_active: formData.is_active,
         start_date: new Date(formData.start_date).toISOString(),
         end_date: new Date(formData.end_date).toISOString()
       };
 
       if (editingCampaign) {
         await base44.entities.Campaign.update(editingCampaign.id, campaignData);
+        toast.success("Campaign updated successfully!");
       } else {
         await base44.entities.Campaign.create(campaignData);
+        toast.success("Campaign created successfully!");
       }
 
       setShowForm(false);
@@ -64,7 +74,8 @@ export default function CampaignManagement() {
       loadCampaigns();
     } catch (error) {
       console.error("Error saving campaign:", error);
-      alert("Failed to save campaign");
+      const errorMessage = error?.message || error?.hint || "Failed to save campaign. Please check all fields.";
+      toast.error(errorMessage);
     }
   };
 
@@ -72,9 +83,11 @@ export default function CampaignManagement() {
     if (!confirm("Delete this campaign?")) return;
     try {
       await base44.entities.Campaign.delete(id);
+      toast.success("Campaign deleted successfully!");
       loadCampaigns();
     } catch (error) {
       console.error("Error deleting campaign:", error);
+      toast.error("Failed to delete campaign");
     }
   };
 
@@ -84,13 +97,13 @@ export default function CampaignManagement() {
       name: campaign.name,
       description: campaign.description || "",
       discount_type: campaign.discount_type,
-      discount_value: campaign.discount_value,
+      discount_value: campaign.discount_value?.toString() || "",
       code: campaign.code,
       start_date: campaign.start_date?.split('T')[0] || "",
       end_date: campaign.end_date?.split('T')[0] || "",
-      usage_limit: campaign.usage_limit || 100,
-      usage_per_user: campaign.usage_per_user || 1,
-      min_order_amount: campaign.min_order_amount || 0,
+      usage_limit: campaign.usage_limit?.toString() || "",
+      usage_per_user: campaign.usage_per_user?.toString() || "",
+      min_order_amount: campaign.min_order_amount?.toString() || "",
       is_active: campaign.is_active
     });
     setShowForm(true);
@@ -99,6 +112,7 @@ export default function CampaignManagement() {
   const notifyUsers = async (campaign) => {
     try {
       const users = await base44.entities.User.list();
+      let notifiedCount = 0;
       for (const user of users) {
         if (user.notification_preferences?.promotions !== false) {
           await base44.entities.Notification.create({
@@ -107,11 +121,13 @@ export default function CampaignManagement() {
             message: `Use code ${campaign.code} and get ${campaign.discount_type === 'percentage' ? campaign.discount_value + '%' : '₹' + campaign.discount_value} off!`,
             type: "info"
           });
+          notifiedCount++;
         }
       }
-      alert(`Notification sent to users!`);
+      toast.success(`Notification sent to ${notifiedCount} users!`);
     } catch (error) {
       console.error("Error notifying users:", error);
+      toast.error("Failed to send notifications");
     }
   };
 
@@ -120,13 +136,13 @@ export default function CampaignManagement() {
       name: "",
       description: "",
       discount_type: "percentage",
-      discount_value: 0,
+      discount_value: "",
       code: "",
       start_date: "",
       end_date: "",
-      usage_limit: 100,
-      usage_per_user: 1,
-      min_order_amount: 0,
+      usage_limit: "",
+      usage_per_user: "",
+      min_order_amount: "",
       is_active: true
     });
   };
@@ -287,7 +303,12 @@ export default function CampaignManagement() {
               {formData.discount_type !== 'free_shipping' && (
                 <div>
                   <Label>Discount Value</Label>
-                  <Input type="number" value={formData.discount_value} onChange={(e) => setFormData({...formData, discount_value: parseFloat(e.target.value)})} />
+                  <Input 
+                    type="number" 
+                    value={formData.discount_value} 
+                    onChange={(e) => setFormData({...formData, discount_value: e.target.value})} 
+                    placeholder="0"
+                  />
                 </div>
               )}
             </div>
@@ -328,15 +349,30 @@ export default function CampaignManagement() {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label>Total Usage Limit</Label>
-                <Input type="number" value={formData.usage_limit} onChange={(e) => setFormData({...formData, usage_limit: parseInt(e.target.value)})} />
+                <Input 
+                  type="number" 
+                  value={formData.usage_limit} 
+                  onChange={(e) => setFormData({...formData, usage_limit: e.target.value})} 
+                  placeholder="100"
+                />
               </div>
               <div>
                 <Label>Usage Per User</Label>
-                <Input type="number" value={formData.usage_per_user} onChange={(e) => setFormData({...formData, usage_per_user: parseInt(e.target.value)})} />
+                <Input 
+                  type="number" 
+                  value={formData.usage_per_user} 
+                  onChange={(e) => setFormData({...formData, usage_per_user: e.target.value})} 
+                  placeholder="1"
+                />
               </div>
               <div>
                 <Label>Min Order (₹)</Label>
-                <Input type="number" value={formData.min_order_amount} onChange={(e) => setFormData({...formData, min_order_amount: parseFloat(e.target.value)})} />
+                <Input 
+                  type="number" 
+                  value={formData.min_order_amount} 
+                  onChange={(e) => setFormData({...formData, min_order_amount: e.target.value})} 
+                  placeholder="0"
+                />
               </div>
             </div>
             <Alert>
