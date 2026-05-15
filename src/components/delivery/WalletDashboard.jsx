@@ -86,7 +86,7 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
           const script = document.createElement('script');
           script.src = 'https://checkout.razorpay.com/v1/checkout.js';
           script.onload = resolve;
-          script.onerror = reject;
+          script.onerror = () => reject(new Error('Unable to load payment gateway. Please check your internet connection and try again.'));
           document.body.appendChild(script);
         });
       }
@@ -176,7 +176,7 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
             loadData();
 
             import('sonner').then(({ toast }) => {
-              toast.success(`✅ ₹${amount} added to your wallet!`);
+              toast.success(`Rs.${amount} added to your wallet!`);
             });
           } catch (err) {
             console.error('Payment verification error:', err);
@@ -208,8 +208,23 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
     } catch (err) {
       console.error('Add money error:', err);
       setIsPaymentLoading(false);
+      
+      // User-friendly error messages
+      let errorMessage = 'Payment failed. Please try again.';
+      
+      if (err.message.includes('load payment gateway') || err.message.includes('internet connection')) {
+        errorMessage = '⚠️ Unable to connect to payment gateway. Please check your internet connection and try again.';
+      } else if (err.message.includes('network') || err.message.includes('fetch')) {
+        errorMessage = '🌐 Network error. Please check your connection and try again.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
       import('sonner').then(({ toast }) => {
-        toast.error(err.message || 'Payment failed. Try again or contact admin.');
+        toast.error(errorMessage, {
+          duration: 5000,
+          description: 'If the problem persists, please contact admin.'
+        });
       });
     }
   };

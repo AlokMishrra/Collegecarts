@@ -69,7 +69,7 @@ export default function Referral() {
     if (refs.length > 0) {
       // Update existing referral record with this user
       await base44.entities.Referral.update(refs[0].id, { referred_user_id: user.id, referred_email: user.email });
-      setMessage("✅ Referral code applied! You'll get ₹20 off after your first order.");
+      setMessage("Referral code applied! You'll get Rs.20 off after your first order.");
     } else {
       // Create new referral record (we'll find the referrer's user by code pattern)
       await base44.entities.Referral.create({
@@ -79,7 +79,7 @@ export default function Referral() {
         referred_email: user.email,
         status: "pending"
       });
-      setMessage("✅ Referral code applied! You'll get ₹20 off after your first order.");
+      setMessage("Referral code applied! You'll get Rs.20 off after your first order.");
     }
     setReferCode("");
     setTimeout(() => setMessage(""), 4000);
@@ -136,7 +136,7 @@ export default function Referral() {
             <p className="text-gray-600">1. Share your code with a friend</p>
             <p className="text-gray-600">2. They sign up and use your code</p>
             <p className="text-gray-600">3. They place their first order</p>
-            <p className="text-emerald-700 font-semibold">4. Both of you get ₹20! 🎉</p>
+            <p className="text-emerald-700 font-semibold">4. Both of you get Rs.20!</p>
           </div>
         </CardContent>
       </Card>
@@ -156,7 +156,7 @@ export default function Referral() {
             />
             <Button variant="outline" onClick={applyReferralCode} disabled={!referCode.trim()}>Apply</Button>
           </div>
-          {message && <p className={`text-sm ${message.startsWith("✅") ? "text-green-600" : "text-red-600"}`}>{message}</p>}
+          {message && <p className={`text-sm ${message.startsWith("Referral code applied") ? "text-green-600" : "text-red-600"}`}>{message}</p>}
         </CardContent>
       </Card>
 
@@ -175,7 +175,7 @@ export default function Referral() {
                     <p className="text-xs text-gray-500">{new Date(r.created_date).toLocaleDateString('en-IN')}</p>
                   </div>
                   <Badge className={r.status === "rewarded" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}>
-                    {r.status === "rewarded" ? "✅ ₹20 Earned" : "⏳ Pending"}
+                    {r.status === "rewarded" ? "Rs.20 Earned" : "Pending"}
                   </Badge>
                 </div>
               ))}

@@ -82,7 +82,7 @@ export default function DeliveryPersonManagement() {
     const txns = await base44.entities.WalletTransaction.filter({ delivery_person_id: person.id }, '-created_date', 15).catch(() => []);
     setWalletTransactions(txns);
     setIsAdjusting(false);
-    toast.success(`✅ Wallet reset to ₹0. COD cash of ₹${Math.abs(prevBalance).toFixed(2)} marked as submitted.`);
+    toast.success(`Wallet reset to Rs.0. COD cash of Rs.${Math.abs(prevBalance).toFixed(2)} marked as submitted.`);
   };
 
   const handleManualAdjust = async (isCredit) => {
@@ -109,7 +109,7 @@ export default function DeliveryPersonManagement() {
     const txns = await base44.entities.WalletTransaction.filter({ delivery_person_id: person.id }, '-created_date', 15).catch(() => []);
     setWalletTransactions(txns);
     setIsAdjusting(false);
-    toast.success(`✅ ${isCredit ? 'Added' : 'Deducted'} ₹${amount.toFixed(2)}. New balance: ₹${newBalance.toFixed(2)}`);
+    toast.success(`${isCredit ? 'Added' : 'Deducted'} Rs.${amount.toFixed(2)}. New balance: Rs.${newBalance.toFixed(2)}`);
   };
 
   const handleForceOffline = async (person) => {
@@ -164,7 +164,7 @@ export default function DeliveryPersonManagement() {
         is_read: false
       })
     ]);
-    toast.success(`✅ ${isDeposit ? 'Deposit' : 'Withdrawal'} approved successfully!`);
+    toast.success(`${isDeposit ? 'Deposit' : 'Withdrawal'} approved successfully!`);
     loadWithdrawalRequests();
     loadDeliveryPersons();
   };

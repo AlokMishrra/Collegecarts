@@ -61,7 +61,7 @@ export default function CODReconciliation() {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'RPC failed');
 
-      toast.success(`✅ ₹${partner.cod_held?.toFixed(2)} marked as submitted for ${partner.name}`);
+      toast.success(`Rs.${partner.cod_held?.toFixed(2)} marked as submitted for ${partner.name}`);
       await loadData();
     } catch (err) {
       console.error('Mark submitted error:', err);

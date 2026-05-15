@@ -749,7 +749,7 @@ export default function Delivery() {
             }
             
             import('sonner').then(({ toast }) => {
-              toast.success(`✅ ₹${codOverdueAmount} added to wallet. COD cleared. You can go online now.`);
+              toast.success(`Rs.${codOverdueAmount} added to wallet. COD cleared. You can go online now.`);
             });
           } catch (err) {
             console.error('Payment verification error:', err);
@@ -918,7 +918,7 @@ export default function Delivery() {
           setQrModal({ open: false, order: null, qrUrl: null, amount: 0 });
           
           import('sonner').then(({ toast }) => { 
-            toast.success('✅ Payment received! Amount credited to your wallet.'); 
+            toast.success('Payment received! Amount credited to your wallet.'); 
           });
         }
         
@@ -954,7 +954,7 @@ export default function Delivery() {
       await supabase.rpc('collect_cod_online_complete', { p_partner_id: deliveryPerson.id, p_order_id: order.id, p_payment_id: verifyData.paymentId || '' });
       setAssignedOrders(prev => prev.map(o => o.id === order.id ? { ...o, cod_collected: true, cod_collection_method: 'online' } : o));
       setCodInitiated(prev => ({ ...prev, [order.id]: 'done' }));
-      import('sonner').then(({ toast }) => { toast.success('✅ Online payment confirmed. No wallet deduction.'); });
+      import('sonner').then(({ toast }) => { toast.success('Online payment confirmed. No wallet deduction.'); });
     } catch (err) {
       console.error('Online OTP confirm error:', err);
     } finally {

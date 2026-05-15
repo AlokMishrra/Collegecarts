@@ -199,7 +199,7 @@ export default function Subscription() {
             setIsProcessingPayment(false);
 
             import('sonner').then(({ toast }) =>
-              toast.success('🎉 Premium activated! Enjoy free delivery on all orders.')
+              toast.success('Premium activated! Enjoy free delivery on all orders.')
             );
 
             // ── Background DB writes — don't block UI ──────────────────
