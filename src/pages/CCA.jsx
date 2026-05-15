@@ -51,6 +51,8 @@ import ProductManagement from "../components/admin/ProductManagement";
   import AdminErrorPanel from "../components/admin/AdminErrorPanel";
 import CODReconciliation from "../components/admin/CODReconciliation";
 import SupportTicketManagement from "../components/admin/SupportTicketManagement";
+import EmployeeSystemManagement from "../components/admin/EmployeeSystemManagement";
+import CheckoutChargesManagement from "../components/admin/CheckoutChargesManagement";
 
 // ─── Inline Deployment Status Component ───────────────────────────────────────
 function DeploymentStatus() {
@@ -95,7 +97,7 @@ function DeploymentStatus() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">🚀 Deployment Status</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Deployment Status</h2>
         <p className="text-sm text-gray-600 mt-1">Edge Functions and automation setup for production</p>
       </div>
 
@@ -157,7 +159,7 @@ function DeploymentStatus() {
         </h3>
         <div style={{ background: '#FEF9C3', border: '1px solid #CA8A04', borderRadius: '8px', padding: '12px' }}>
           <p style={{ color: '#92400E', fontWeight: 600, fontSize: '13px', margin: '0 0 6px' }}>
-            ⚠️ One-Time Setup Required
+            One-Time Setup Required
           </p>
           <p style={{ color: '#78350F', fontSize: '12px', margin: 0 }}>
             Open your Supabase project → SQL Editor → paste and run the contents of{' '}
@@ -319,6 +321,7 @@ export default function CCA() {
     { value: "ai-insights", label: "AI Intelligence", permission: "view_summary", component: <UnifiedAIDashboard /> },
     { value: "summary", label: "Daily Summary", permission: "view_summary", component: <DailyOrderSummary /> },
     { value: "profit", label: "Profit Analytics", permission: "view_summary", component: <DailyProfitCalculator /> },
+    { value: "employee-system", label: "Employee System", permission: "manage_settings", component: <EmployeeSystemManagement /> },
     { value: "crm", label: "CRM", permission: "manage_crm", component: <CRMModule /> },
     { value: "retention", label: "Customer Retention", permission: "manage_crm", component: <CustomerRetention /> },
     { value: "marketing", label: "Marketing Automation", permission: "manage_campaigns", component: <MarketingAutomation /> },
@@ -346,6 +349,7 @@ export default function CCA() {
     { value: "orders", label: "Orders", permission: "manage_orders", component: <OrderManagement /> },
     { value: "scheduled-orders", label: "Scheduled Orders", permission: "manage_orders", component: <ScheduledOrdersManager /> },
     { value: "support-tickets", label: "Support Tickets", permission: "manage_orders", component: <SupportTicketManagement /> },
+    { value: "checkout-charges", label: "Charges & Fees", permission: "manage_settings", component: <CheckoutChargesManagement /> },
     { value: "notifications", label: "Notification Config", permission: "manage_settings", component: <NotificationConfigManager /> },
     { value: "gamification", label: "Gamification", permission: "manage_settings", component: <GamificationConfig /> },
     { value: "qr-generator", label: "QR Generator", permission: "manage_orders", component: <CustomQRGenerator /> },

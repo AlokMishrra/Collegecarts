@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { CartItem } from "@/entities/CartItem";
 import { Product } from "@/entities/Product";
 import { base44 } from "@/api/base44Client";
@@ -18,6 +18,7 @@ import { withRetry, generateIdempotencyKey, checkDuplicateOrder } from "@/utils/
 import { logErrorToDB } from "@/utils/supabaseWithLogging";
 import { releaseStockOnCancel } from "@/utils/inventoryService";
 import { toast } from "sonner";
+import { useCheckoutCharges } from "@/hooks/useCheckoutCharges";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,6 +80,45 @@ export default function Cart() {
           scheduledTime: ""
         });
         const [selectedDhaba, setSelectedDhaba] = useState({});
+  const [currentSubtotal, setCurrentSubtotal] = useState(0);
+
+  // Helper function to get product price (needs to be defined before calculateSubtotal)
+  const getProductPrice = useCallback((product) => {
+    if (!product) return 0;
+    
+    // Check if product has dhaba options and a dhaba is selected
+    if (product.dhaba_options?.length > 0) {
+      const selectedDhabaForProduct = selectedDhaba[product.id];
+      if (selectedDhabaForProduct) {
+        const dhabaOption = product.dhaba_options.find(
+          opt => opt.dhaba_name === selectedDhabaForProduct
+        );
+        if (dhabaOption) {
+          return dhabaOption.price;
+        }
+      }
+    }
+    
+    // Return regular price
+    return product.price || 0;
+  }, [selectedDhaba]);
+
+  // Calculate subtotal for checkout charges
+  const calculateSubtotal = useCallback(() => {
+    return cartItems.reduce((total, item) => {
+      const product = products[item.product_id];
+      const price = getProductPrice(product);
+      return total + (product ? price * item.quantity : 0);
+    }, 0);
+  }, [cartItems, products, getProductPrice]);
+
+  // Update subtotal when cart changes
+  useEffect(() => {
+    setCurrentSubtotal(calculateSubtotal());
+  }, [calculateSubtotal]);
+
+  // Checkout charges hook
+  const { charges: checkoutCharges, loading: loadingCharges } = useCheckoutCharges(currentSubtotal);
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -344,31 +384,11 @@ export default function Cart() {
     }
   };
 
-  const getProductPrice = (product) => {
-    if (!product) return 0;
-    
-    // Check if dhaba is selected and product has dhaba options
-    if (selectedDhaba[product.id] && product.dhaba_options?.length > 0) {
-      const dhabaOption = product.dhaba_options.find(opt => opt.dhaba_name === selectedDhaba[product.id]);
-      if (dhabaOption) return dhabaOption.price;
-    }
-    
-    return product.price || 0;
-  };
-
   const hasDhabaProducts = () => {
     return cartItems.some(item => {
       const product = products[item.product_id];
       return product?.dhaba_options?.length > 0;
     });
-  };
-
-  const calculateSubtotal = () => {
-    return cartItems.reduce((total, item) => {
-      const product = products[item.product_id];
-      const price = getProductPrice(product);
-      return total + (product ? price * item.quantity : 0);
-    }, 0);
   };
 
   const calculateShippingCharge = () => {
@@ -380,17 +400,22 @@ export default function Cart() {
 
     if (subtotal >= threshold) return 0;
 
-    // Calculate product-specific delivery charges (sum of all products' charges)
+    // Calculate delivery charge based on total quantity of items
+    // Each item adds ₹5 to delivery charge (or product-specific delivery_charge if set)
+    const baseDeliveryChargePerItem = settings.shipping_charge || 5;
+    
     let totalDeliveryCharge = 0;
     cartItems.forEach(item => {
       const product = products[item.product_id];
-      if (product && product.delivery_charge) {
-        totalDeliveryCharge += product.delivery_charge;
+      if (product) {
+        // Use product-specific delivery charge if available, otherwise use base charge
+        const chargePerItem = product.delivery_charge || baseDeliveryChargePerItem;
+        // Multiply by quantity to charge for each item
+        totalDeliveryCharge += chargePerItem * item.quantity;
       }
     });
 
-    // If no product-specific charges, use default shipping charge
-    return totalDeliveryCharge > 0 ? totalDeliveryCharge : (settings.shipping_charge || 0);
+    return totalDeliveryCharge;
   };
 
   const calculatePointsDiscount = () => {
@@ -410,10 +435,30 @@ export default function Cart() {
 
   const calculateTotal = () => {
     let shipping = calculateShippingCharge();
+    const isFreeDelivery = shipping === 0;
+    
     if (appliedCampaign?.discount_type === 'free_shipping') {
       shipping = 0;
     }
-    return Math.max(0, calculateSubtotal() + shipping - calculatePointsDiscount() - calculateCampaignDiscount());
+    
+    // Add checkout charges (small cart fee + handling fee)
+    const smallCartFee = checkoutCharges?.smallCartFee || 0;
+    let handlingFee = checkoutCharges?.handlingFee || 0;
+    
+    // If delivery is free and free delivery handling is enabled, use that fee instead
+    if (isFreeDelivery && checkoutCharges?.settings?.free_delivery_handling_enabled) {
+      handlingFee = checkoutCharges.settings.free_delivery_handling_fee || 0;
+    }
+    
+    return Math.max(
+      0, 
+      calculateSubtotal() + 
+      shipping + 
+      smallCartFee + 
+      handlingFee - 
+      calculatePointsDiscount() - 
+      calculateCampaignDiscount()
+    );
   };
 
   const applyDiscountCode = async () => {
@@ -988,6 +1033,10 @@ export default function Cart() {
             items: orderItems,
             hostel_id: selectedHostel === "Other" ? null : selectedHostel,
             total_amount: finalAmount,
+            subtotal_before_fees: calculateSubtotal(),
+            small_cart_fee: checkoutCharges?.smallCartFee || 0,
+            handling_fee: checkoutCharges?.handlingFee || 0,
+            delivery_fee: calculateShippingCharge(),
             delivery_address: fullAddress,
             phone_number: phoneNumber,
             delivery_notes: deliveryNotes,
@@ -1678,6 +1727,56 @@ export default function Cart() {
                   <span className="text-gray-600">Subtotal</span>
                   <span className="font-medium">₹{calculateSubtotal().toFixed(0)}</span>
                 </div>
+                
+                {/* Small Cart Fee */}
+                {checkoutCharges?.smallCartFee > 0 && (
+                  <div className="flex justify-between text-[10px] sm:text-xs">
+                    <span className="text-gray-600 flex items-center gap-1">
+                      Small Cart Fee
+                      <span className="text-[8px] text-gray-400">
+                        (below ₹{checkoutCharges?.threshold})
+                      </span>
+                    </span>
+                    <span className="font-medium text-amber-600">
+                      +₹{checkoutCharges.smallCartFee.toFixed(0)}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Handling Fee - Show appropriate fee based on delivery status */}
+                {(() => {
+                  const shipping = calculateShippingCharge();
+                  const isFreeDelivery = shipping === 0;
+                  const showFreeDeliveryHandling = isFreeDelivery && 
+                    checkoutCharges?.settings?.free_delivery_handling_enabled;
+                  const showRegularHandling = !isFreeDelivery && 
+                    checkoutCharges?.handlingFee > 0;
+                  
+                  if (showFreeDeliveryHandling) {
+                    return (
+                      <div className="flex justify-between text-[10px] sm:text-xs">
+                        <span className="text-gray-600 flex items-center gap-1">
+                          Handling Fee
+                          <span className="text-[8px] text-gray-400">
+                            (free delivery)
+                          </span>
+                        </span>
+                        <span className="font-medium text-blue-600">
+                          +₹{checkoutCharges.settings.free_delivery_handling_fee.toFixed(0)}
+                        </span>
+                      </div>
+                    );
+                  } else if (showRegularHandling) {
+                    return (
+                      <div className="flex justify-between text-[10px] sm:text-xs">
+                        <span className="text-gray-600">Handling Fee</span>
+                        <span className="font-medium">+₹{checkoutCharges.handlingFee.toFixed(0)}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
                 <div className="flex justify-between text-[10px] sm:text-xs">
                   <span className="text-gray-600">Delivery</span>
                   <span className="font-medium">
@@ -1706,6 +1805,16 @@ export default function Cart() {
                     <span className="font-medium">-₹{calculatePointsDiscount().toFixed(0)}</span>
                   </div>
                 )}
+                
+                {/* Helpful message for small cart fee */}
+                {checkoutCharges?.shouldApplySmallCartFee && checkoutCharges?.threshold && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">
+                    <p className="text-[9px] sm:text-[10px] text-amber-700">
+                      Add Rs.{(checkoutCharges.threshold - calculateSubtotal()).toFixed(0)} more to avoid small cart fee
+                    </p>
+                  </div>
+                )}
+                
                 <div className="flex justify-between items-center text-sm sm:text-base font-bold pt-1.5 border-t">
                   <span>Total</span>
                   <span className="text-emerald-600">₹{calculateTotal().toFixed(0)}</span>
