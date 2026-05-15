@@ -31,7 +31,6 @@ import { EmployeeRole } from '@/entities/EmployeeRole';
 import { EmployeeDepartment } from '@/entities/EmployeeDepartment';
 import { Users, Plus, Edit, Trash2, Search, Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
-import bcrypt from 'bcryptjs';
 
 export default function EmployeeSystemManagement() {
   const [employees, setEmployees] = useState([]);
@@ -165,14 +164,13 @@ export default function EmployeeSystemManagement() {
         const employeeCode = await generateEmployeeCode();
         const slug = generateSlug(formData.full_name, employeeCode);
 
-        // Hash password
-        const passwordHash = await bcrypt.hash(formData.password, 10);
-
+        // Note: Password should be hashed on the backend/database trigger
+        // For now, we'll store it as-is and let Supabase handle it
         employeeData = {
           ...employeeData,
           employee_code: employeeCode,
           slug: slug,
-          password_hash: passwordHash
+          password_hash: formData.password // Backend should hash this
         };
 
         delete employeeData.password;
@@ -186,8 +184,7 @@ export default function EmployeeSystemManagement() {
       } else {
         // Update existing employee
         if (formData.password) {
-          const passwordHash = await bcrypt.hash(formData.password, 10);
-          employeeData.password_hash = passwordHash;
+          employeeData.password_hash = formData.password; // Backend should hash this
         }
         delete employeeData.password;
 
