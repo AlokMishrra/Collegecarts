@@ -26,9 +26,6 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
-import { Employee } from '@/entities/Employee';
-import { EmployeeRole } from '@/entities/EmployeeRole';
-import { EmployeeDepartment } from '@/entities/EmployeeDepartment';
 import { Users, Plus, Edit, Trash2, Search, Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -61,66 +58,62 @@ export default function EmployeeSystemManagement() {
       // Load employees
       let employeesData = [];
       try {
-        employeesData = await Employee.listWithDetails();
+        // Load employees with role and department details
+        const { data: employeesData, error } = await supabase
+          .from('employee_accounts')
+          .select(`
+            *,
+            role:employee_roles(id, role_name),
+            department:employee_departments(id, department_name)
+          `)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
         console.log('Employees loaded:', employeesData);
+        setEmployees(employeesData || []);
       } catch (err) {
         console.error('Error loading employees:', err);
+        setEmployees([]);
       }
 
       // Load roles
-      let rolesData = [];
       try {
-        rolesData = await EmployeeRole.list();
-        console.log('Roles loaded:', rolesData);
-      } catch (err) {
-        console.error('Error loading roles:', err);
-        // Try direct query as fallback
-        const { data, error } = await supabase
+        const { data: rolesData, error } = await supabase
           .from('employee_roles')
           .select('*')
           .order('hierarchy_level', { ascending: false });
         
-        if (error) {
-          console.error('Direct roles query error:', error);
-        } else {
-          rolesData = data;
-          console.log('Roles loaded via direct query:', rolesData);
-        }
+        if (error) throw error;
+        console.log('Roles loaded:', rolesData);
+        setRoles(rolesData || []);
+      } catch (err) {
+        console.error('Error loading roles:', err);
+        setRoles([]);
       }
 
       // Load departments
-      let departmentsData = [];
       try {
-        departmentsData = await EmployeeDepartment.listActive();
-        console.log('Departments loaded:', departmentsData);
-      } catch (err) {
-        console.error('Error loading departments:', err);
-        // Try direct query as fallback
-        const { data, error } = await supabase
+        const { data: departmentsData, error } = await supabase
           .from('employee_departments')
           .select('*')
           .eq('is_active', true)
           .order('department_name');
         
-        if (error) {
-          console.error('Direct departments query error:', error);
-        } else {
-          departmentsData = data;
-          console.log('Departments loaded via direct query:', departmentsData);
-        }
+        if (error) throw error;
+        console.log('Departments loaded:', departmentsData);
+        setDepartments(departmentsData || []);
+      } catch (err) {
+        console.error('Error loading departments:', err);
+        setDepartments([]);
       }
 
-      setEmployees(employeesData || []);
-      setRoles(rolesData || []);
-      setDepartments(departmentsData || []);
-
       console.log('Final state:', {
-        employees: employeesData?.length || 0,
-        roles: rolesData?.length || 0,
-        departments: departmentsData?.length || 0
+        employees: employees?.length || 0,
+        roles: roles?.length || 0,
+        departments: departments?.length || 0
       });
 
-      if (!rolesData || rolesData.length === 0) {
+      if (!roles || roles.length === 0) {
         toast.error('No roles found. Please run the database migration first.');
       }
       if (!departmentsData || departmentsData.length === 0) {
