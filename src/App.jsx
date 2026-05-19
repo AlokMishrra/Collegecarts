@@ -23,27 +23,27 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import OfflineBanner from '@/components/shared/OfflineBanner';
 import AdminErrorPanel from '@/components/admin/AdminErrorPanel';
 
-// Employee System Imports
-import EmployeeLogin from '@/pages/employee/EmployeeLogin';
-import EmployeePasswordReset from '@/pages/employee/EmployeePasswordReset';
-import EmployeeLayout from '@/pages/employee/EmployeeLayout';
-import EmployeeDashboard from '@/pages/employee/EmployeeDashboard';
-import EmployeeProfile from '@/pages/employee/EmployeeProfile';
-import EmployeeSettings from '@/pages/employee/EmployeeSettings';
-import EmployeeAttendance from '@/pages/employee/EmployeeAttendance';
-import EmployeeSalary from '@/pages/employee/EmployeeSalary';
-import CreateStockOrder from '@/pages/employee/CreateStockOrder';
-import StockOrdersList from '@/pages/employee/StockOrdersList';
-import StockOrderDetails from '@/pages/employee/StockOrderDetails';
-import StockManager from '@/pages/employee/StockManager';
-import ManageEmployees from '@/pages/employee/ManageEmployees';
-import ManageDepartments from '@/pages/employee/ManageDepartments';
-import Deliveries from '@/pages/employee/Deliveries';
-import Finance from '@/pages/employee/Finance';
-import Analytics from '@/pages/employee/Analytics';
-import Support from '@/pages/employee/Support';
-import Inventory from '@/pages/employee/Inventory';
-import PayoutManagement from '@/pages/employee/PayoutManagement';
+// Employee System - Lazy loaded (not needed on initial page load)
+const EmployeeLogin = lazy(() => import('@/pages/employee/EmployeeLogin'));
+const EmployeePasswordReset = lazy(() => import('@/pages/employee/EmployeePasswordReset'));
+const EmployeeLayout = lazy(() => import('@/pages/employee/EmployeeLayout'));
+const EmployeeDashboard = lazy(() => import('@/pages/employee/EmployeeDashboard'));
+const EmployeeProfile = lazy(() => import('@/pages/employee/EmployeeProfile'));
+const EmployeeSettings = lazy(() => import('@/pages/employee/EmployeeSettings'));
+const EmployeeAttendance = lazy(() => import('@/pages/employee/EmployeeAttendance'));
+const EmployeeSalary = lazy(() => import('@/pages/employee/EmployeeSalary'));
+const CreateStockOrder = lazy(() => import('@/pages/employee/CreateStockOrder'));
+const StockOrdersList = lazy(() => import('@/pages/employee/StockOrdersList'));
+const StockOrderDetails = lazy(() => import('@/pages/employee/StockOrderDetails'));
+const StockManager = lazy(() => import('@/pages/employee/StockManager'));
+const ManageEmployees = lazy(() => import('@/pages/employee/ManageEmployees'));
+const ManageDepartments = lazy(() => import('@/pages/employee/ManageDepartments'));
+const Deliveries = lazy(() => import('@/pages/employee/Deliveries'));
+const Finance = lazy(() => import('@/pages/employee/Finance'));
+const EmployeeAnalytics = lazy(() => import('@/pages/employee/Analytics'));
+const Support = lazy(() => import('@/pages/employee/Support'));
+const Inventory = lazy(() => import('@/pages/employee/Inventory'));
+const PayoutManagement = lazy(() => import('@/pages/employee/PayoutManagement'));
 import EmployeeAuthGuard from '@/components/EmployeeAuthGuard';
 
 // Lazy load heavy pages for better performance
@@ -201,7 +201,7 @@ const AuthenticatedApp = () => {
         <Route path="deliveries" element={<Deliveries />} />
         <Route path="finance" element={<Finance />} />
         <Route path="payouts" element={<PayoutManagement />} />
-        <Route path="analytics" element={<Analytics />} />
+        <Route path="analytics" element={<EmployeeAnalytics />} />
         <Route path="support" element={<Support />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="profile" element={<EmployeeProfile />} />

@@ -69,9 +69,34 @@
     <!-- Resource Hints for Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preconnect" href="https://vbbdzhuzwgiipsnssmxq.supabase.co" />
+    <link rel="preconnect" href="https://vbbdzhuzwgiipsnssmxq.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://www.google-analytics.com" />
     <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+    
+    <!-- Critical CSS - Prevent CLS with skeleton -->
+    <style>
+      /* Prevent layout shift - reserve space for app shell */
+      #root { min-height: 100vh; }
+      /* Loading skeleton to reduce FCP/LCP perception */
+      .app-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #f9fafb;
+      }
+      .app-loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e5e7eb;
+        border-top-color: #059669;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      /* Prevent image CLS */
+      img { max-width: 100%; height: auto; }
+    </style>
     
     <!-- Favicon Complete Set -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
@@ -258,7 +283,9 @@
       onerror="console.error('Razorpay script failed to load. Payment features may not work. Please check your internet connection.');"
     ></script>
     
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-loading"><div class="app-loading-spinner"></div></div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

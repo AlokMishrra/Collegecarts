@@ -2,54 +2,46 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
-import { initPerformanceMonitoring } from '@/utils/performanceMonitor'
 
-// ═══════════════════════════════════════════════════════════════
-// PERFORMANCE MONITORING
-// ═══════════════════════════════════════════════════════════════
+// Defer non-critical initialization
+const initNonCritical = () => {
+  // Performance monitoring - defer
+  import('@/utils/performanceMonitor').then(({ initPerformanceMonitoring }) => {
+    initPerformanceMonitoring();
+  }).catch(() => {});
 
-// Initialize performance tracking
-if (typeof window !== 'undefined') {
-  initPerformanceMonitoring();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MOBILE SCROLL PERFORMANCE OPTIMIZATION
-// ═══════════════════════════════════════════════════════════════
-
-// Passive touch event listeners for better scroll performance
-if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-  // Enable passive touch events for smooth scrolling
-  document.addEventListener('touchstart', () => {}, { passive: true });
-  document.addEventListener('touchmove', () => {}, { passive: true });
-  document.addEventListener('touchend', () => {}, { passive: true });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ERROR SUPPRESSION
-// ═══════════════════════════════════════════════════════════════
-
-// Suppress console errors in production (keep console.error for actual debugging)
-const originalError = console.error;
-console.error = (...args) => {
-  // Suppress known non-critical errors
-  const message = args[0]?.toString() || '';
-  if (
-    message.includes('Lock broken by another request') ||
-    message.includes('AbortError') ||
-    message.includes('Error loading notifications') ||
-    message.includes('Error checking delivered orders')
-  ) {
-    return; // Silently ignore
+  // Passive touch events for scroll performance
+  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    document.addEventListener('touchstart', () => {}, { passive: true });
+    document.addEventListener('touchmove', () => {}, { passive: true });
   }
-  originalError.apply(console, args);
 };
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  // <React.StrictMode>
-  <App />
-  // </React.StrictMode>,
-)
+// Suppress known non-critical console errors in production
+if (import.meta.env.PROD) {
+  const originalError = console.error;
+  console.error = (...args) => {
+    const message = args[0]?.toString() || '';
+    if (
+      message.includes('Lock broken by another request') ||
+      message.includes('AbortError') ||
+      message.includes('Error loading notifications') ||
+      message.includes('Error checking delivered orders')
+    ) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+// Run non-critical init after first paint
+if ('requestIdleCallback' in window) {
+  requestIdleCallback(initNonCritical);
+} else {
+  setTimeout(initNonCritical, 100);
+}
 
 if (import.meta.hot) {
   import.meta.hot.on('vite:beforeUpdate', () => {

@@ -35,63 +35,77 @@ export default defineConfig({
   },
   build: {
     // Optimize build output
-    target: 'es2015',
+    target: 'es2020',
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // Remove console.logs in production
+        drop_console: true,
         drop_debugger: true,
         pure_funcs: ['console.log', 'console.info', 'console.debug'],
+        passes: 2,
+      },
+      mangle: {
+        safari10: true,
       },
     },
     chunkSizeWarningLimit: 1000,
-    // Enable CSS code splitting
     cssCodeSplit: true,
-    // Generate source maps for production debugging (optional)
     sourcemap: false,
+    // Reduce initial bundle size
+    assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
-        // Optimize chunk naming for better caching
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
         manualChunks(id) {
-          // React core must be in its own chunk, loaded first
+          // React core - smallest possible
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/scheduler/')) {
             return 'react-vendor';
           }
           if (id.includes('node_modules/react-router-dom/') || id.includes('node_modules/@remix-run/')) {
             return 'router-vendor';
           }
-          if (
-            id.includes('node_modules/framer-motion/') ||
-            id.includes('node_modules/lucide-react/') ||
-            id.includes('node_modules/@radix-ui/')
-          ) {
+          // UI framework - loaded early
+          if (id.includes('node_modules/@radix-ui/')) {
             return 'ui-vendor';
           }
+          // Icons - separate chunk (large)
+          if (id.includes('node_modules/lucide-react/')) {
+            return 'icons-vendor';
+          }
+          // Animation - can be deferred
+          if (id.includes('node_modules/framer-motion/')) {
+            return 'animation-vendor';
+          }
+          // Charts - only needed on specific pages
           if (id.includes('node_modules/recharts/') || id.includes('node_modules/d3-') || id.includes('node_modules/victory-')) {
             return 'chart-vendor';
           }
+          // Supabase
           if (id.includes('node_modules/@supabase/')) {
             return 'supabase-vendor';
           }
-          if (
-            id.includes('node_modules/react-hook-form/') ||
-            id.includes('node_modules/@hookform/') ||
-            id.includes('node_modules/zod/')
-          ) {
+          // Forms
+          if (id.includes('node_modules/react-hook-form/') || id.includes('node_modules/@hookform/') || id.includes('node_modules/zod/')) {
             return 'form-vendor';
           }
-          // Separate heavy libraries
-          if (id.includes('node_modules/three/')) {
-            return 'three-vendor';
-          }
+          // Heavy libs - lazy loaded
           if (id.includes('node_modules/xlsx/')) {
             return 'xlsx-vendor';
           }
           if (id.includes('node_modules/html2canvas/') || id.includes('node_modules/jspdf/')) {
             return 'pdf-vendor';
+          }
+          if (id.includes('node_modules/qrcode/')) {
+            return 'qrcode-vendor';
+          }
+          if (id.includes('node_modules/bcryptjs/')) {
+            return 'crypto-vendor';
+          }
+          // Tanstack query
+          if (id.includes('node_modules/@tanstack/')) {
+            return 'query-vendor';
           }
         }
       }
