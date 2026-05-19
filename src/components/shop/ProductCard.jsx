@@ -272,10 +272,12 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
   );
 }, (prevProps, nextProps) => {
   // Custom comparison function for memo
+  // Return true if props are equal (skip re-render), false if different (re-render)
   return (
     prevProps.product.id === nextProps.product.id &&
     prevProps.cartQuantity === nextProps.cartQuantity &&
     prevProps.product.stock_quantity === nextProps.product.stock_quantity &&
+    prevProps.product.hostel_stock_quantity === nextProps.product.hostel_stock_quantity &&
     prevProps.hostelStock === nextProps.hostelStock &&
     prevProps.isInStock === nextProps.isInStock &&
     prevProps.product.price === nextProps.product.price

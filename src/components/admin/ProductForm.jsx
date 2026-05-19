@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,46 +17,60 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
   const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [hostels, setHostels] = useState([]);
   const [isLoadingHostels, setIsLoadingHostels] = useState(true);
+  const [hostelStockData, setHostelStockData] = useState({});
 
-  // Load hostels from Base44
+  // Load hostels from database
   useEffect(() => {
     const loadHostels = async () => {
       try {
-        // Default hostels
-        const defaultHostels = ["Mithali", "Gavaskar", "Virat", "Tendulkar"];
+        // Fetch hostels from Supabase
+        const { data: hostelData, error } = await supabase
+          .from('hostels')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order');
         
-        try {
-          // Fetch additional hostels from Base44
-          const hostelData = await base44.entities.Hostel.list();
-          const additionalHostels = hostelData
-            .filter(h => h.is_active !== false)
-            .filter(h => !defaultHostels.includes(h.name))
-            .map(h => h.name);
+        if (error) throw error;
+        
+        const hostelNames = hostelData.map(h => h.name);
+        setHostels(hostelNames);
+        
+        // Load hostel stock for this product if editing
+        if (product?.id) {
+          const { data: stockData, error: stockError } = await supabase
+            .from('hostel_stock')
+            .select('hostel_id, stock_quantity, hostel:hostels(name)')
+            .eq('product_id', product.id);
           
-          // Merge default with additional hostels, always include "Other" at the end
-          const allHostels = [...defaultHostels, ...additionalHostels, "Other"];
-          setHostels(allHostels);
-        } catch (error) {
-          console.error("Error loading hostels:", error);
-          // Fallback to default hostels
-          setHostels([...defaultHostels, "Other"]);
+          if (!stockError && stockData) {
+            const stockMap = {};
+            stockData.forEach(item => {
+              if (item.hostel?.name) {
+                stockMap[item.hostel.name] = item.stock_quantity;
+              }
+            });
+            setHostelStockData(stockMap);
+          }
         }
+      } catch (error) {
+        console.error("Error loading hostels:", error);
+        // Fallback to default hostels
+        setHostels(["Mithali", "Gavaskar", "Virat", "Tendulkar", "Shyamji Auditorium", "Other"]);
       } finally {
         setIsLoadingHostels(false);
       }
     };
 
     loadHostels();
-  }, []);
+  }, [product?.id]);
 
-  // Initialize hostel_stock with all hostels
+  // Initialize hostel_stock with loaded data
   const initializeHostelStock = () => {
-    const stock = product?.hostel_stock || {};
     const initialStock = {};
     
-    // Ensure all hostels have a stock value
+    // Use loaded hostel stock data or default to 0
     hostels.forEach(hostel => {
-      initialStock[hostel] = stock[hostel] || 0;
+      initialStock[hostel] = hostelStockData[hostel] || 0;
     });
     
     return initialStock;
@@ -122,7 +137,6 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
   });
 
   // Update hostel_stock when hostels are loaded
-  // Update hostel_stock when hostels are loaded
   useEffect(() => {
     if (!isLoadingHostels && hostels.length > 0) {
       setFormData(prev => ({
@@ -130,7 +144,7 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
         hostel_stock: initializeHostelStock()
       }));
     }
-  }, [isLoadingHostels, hostels]);
+  }, [isLoadingHostels, hostels, hostelStockData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -151,20 +165,17 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
       return;
     }
     
-    const totalStock = parseInt(formData.stock_quantity);
-
-    // Build hostel_stock dynamically from all hostels
-    const hostelStockData = {};
-    hostels.forEach(hostel => {
-      hostelStockData[hostel] = formData.hostel_stock[hostel] !== "" ? parseInt(formData.hostel_stock[hostel]) : 0;
-    });
+    // Calculate total stock from hostel stocks
+    const hostelStockValues = Object.values(formData.hostel_stock).map(v => parseInt(v) || 0);
+    const totalStock = hostelStockValues.reduce((sum, val) => sum + val, 0);
 
     const productData = {
       ...formData,
       price: parseFloat(formData.price),
       original_price: formData.original_price ? parseFloat(formData.original_price) : null,
-      stock_quantity: totalStock,
-      hostel_stock: hostelStockData,
+      stock_quantity: totalStock, // This will be overwritten by trigger, but set it anyway
+      // Remove hostel_stock from product data - we'll save it separately
+      hostel_stock: undefined,
       dhaba_options: formData.dhaba_options.map(opt => ({
         dhaba_name: opt.dhaba_name,
         price: parseFloat(opt.price)
@@ -177,7 +188,8 @@ export default function ProductForm({ product, categories, onSave, onCancel }) {
       available_to: convert24to12(formData.available_to) || ""
     };
     
-    onSave(productData);
+    // Pass hostel stock data separately so parent can save it to hostel_stock table
+    onSave(productData, formData.hostel_stock);
   };
 
   const handleHostelStockChange = (hostel, value) => {

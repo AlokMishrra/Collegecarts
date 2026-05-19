@@ -29,7 +29,8 @@ export default function HostelSelector({ onHostelSelected, onClose, currentHoste
           const hostelData = await base44.entities.Hostel.list();
           const additionalHostels = hostelData
             .filter(h => h.is_active !== false)
-            .filter(h => !["Mithali", "Gavaskar", "Virat", "Tendulkar"].includes(h.name))
+            // Exclude default hostels AND "Other" to prevent duplicates
+            .filter(h => !["Mithali", "Gavaskar", "Virat", "Tendulkar", "Other"].includes(h.name))
             .map(h => ({
               id: h.name,
               name: `${h.name} Hostel`,
@@ -39,7 +40,7 @@ export default function HostelSelector({ onHostelSelected, onClose, currentHoste
           // Merge default hostels with additional ones
           const allHostels = [...defaultHostels, ...additionalHostels];
           
-          // Add "Other" option at the end
+          // Add "Other" option at the end (only once)
           allHostels.push({ id: "Other", name: "Other Location", icon: "📍" });
           
           setHostels(allHostels);

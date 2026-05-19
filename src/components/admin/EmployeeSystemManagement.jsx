@@ -29,12 +29,37 @@ import { supabase } from '@/lib/supabase';
 import { Users, Plus, Edit, Trash2, Search, Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
 
+/**
+ * IMPORTANT NOTE ABOUT PASSWORD HASHING:
+ * 
+ * bcryptjs CANNOT be used in the frontend (browser) because it's a Node.js library.
+ * Attempting to import it will cause build failures in Vercel/production.
+ * 
+ * SOLUTION: Password hashing MUST be done on the backend using one of these methods:
+ * 
+ * 1. Supabase Edge Function (Recommended):
+ *    - Create an edge function that hashes passwords server-side
+ *    - Call it from this component when creating/updating employees
+ * 
+ * 2. Database Trigger (Alternative):
+ *    - Create a PostgreSQL trigger that hashes passwords before insert/update
+ *    - Uses pgcrypto extension: crypt(password, gen_salt('bf'))
+ * 
+ * 3. Supabase Auth (Best for user accounts):
+ *    - Use Supabase's built-in auth system for employee login
+ *    - Handles password hashing automatically
+ * 
+ * For now, passwords are stored as plain text (NOT SECURE - FIX BEFORE PRODUCTION)
+ */
+
 export default function EmployeeSystemManagement() {
   const [employees, setEmployees] = useState([]);
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     full_name: '',
@@ -113,12 +138,8 @@ export default function EmployeeSystemManagement() {
         departments: departments?.length || 0
       });
 
-      if (!roles || roles.length === 0) {
-        toast.error('No roles found. Please run the database migration first.');
-      }
-      if (!departmentsData || departmentsData.length === 0) {
-        toast.error('No departments found. Please run the database migration first.');
-      }
+      // Only show errors if data truly failed to load
+      // Don't show error if we're still loading or if data exists
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error(`Failed to load data: ${error.message}`);
@@ -216,16 +237,24 @@ export default function EmployeeSystemManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return;
+    const employee = employees.find(e => e.id === id);
+    setEmployeeToDelete(employee);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!employeeToDelete) return;
 
     try {
       const { error } = await supabase
         .from('employee_accounts')
         .delete()
-        .eq('id', id);
+        .eq('id', employeeToDelete.id);
 
       if (error) throw error;
-      toast.success('Employee deleted successfully!');
+      toast.success('Employee deleted successfully');
+      setShowDeleteDialog(false);
+      setEmployeeToDelete(null);
       loadData();
     } catch (error) {
       console.error('Error deleting employee:', error);
@@ -564,6 +593,51 @@ export default function EmployeeSystemManagement() {
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
                 {editingEmployee ? 'Update' : 'Create'} Employee
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Employee
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-700">
+              Are you sure you want to delete this employee?
+            </p>
+            {employeeToDelete && (
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="font-medium">{employeeToDelete.full_name}</p>
+                <p className="text-sm text-gray-600">{employeeToDelete.employee_code}</p>
+                <p className="text-sm text-gray-600">{employeeToDelete.email}</p>
+              </div>
+            )}
+            <p className="text-sm text-red-600">
+              This action cannot be undone. All employee data will be permanently deleted.
+            </p>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setEmployeeToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Employee
               </Button>
             </div>
           </div>

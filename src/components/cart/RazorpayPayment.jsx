@@ -22,7 +22,8 @@ export default function RazorpayPayment({
     script.onload = () => setScriptLoaded(true);
     script.onerror = () => {
       console.error('Failed to load Razorpay script');
-      onError('Failed to load payment gateway. Please try again.');
+      setScriptLoaded(false);
+      onError('⚠️ Unable to load payment gateway. Please check your internet connection and refresh the page.');
     };
     document.body.appendChild(script);
 
@@ -35,7 +36,12 @@ export default function RazorpayPayment({
 
   const handlePayment = async () => {
     if (!scriptLoaded) {
-      onError('Payment gateway is still loading. Please wait...');
+      onError('⚠️ Payment gateway is still loading. Please wait a moment and try again.');
+      return;
+    }
+
+    if (!window.Razorpay) {
+      onError('⚠️ Payment gateway not available. Please refresh the page and try again.');
       return;
     }
 

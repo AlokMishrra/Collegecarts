@@ -1,0 +1,91 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                    🏨 HOSTEL DROPDOWN FIX - QUICK START                  ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+PROBLEM: Hostel dropdown only shows "Shyamji Auditorium"
+CAUSE: Database has no hostel records!
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║                           🚀 QUICK FIX (2 MINUTES)                       ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+1. Open Supabase Dashboard → SQL Editor
+
+2. Copy ENTIRE content from:
+   📁 sql/COMPLETE_HOSTEL_SETUP.sql
+
+3. Paste into SQL Editor
+
+4. Click RUN ▶️
+
+5. Wait for success message:
+   ✅ "HOSTEL SYSTEM SETUP COMPLETE!"
+   ✅ "Total hostels: 6"
+
+6. Refresh your employee dashboard
+
+7. Click "Manage Stock" on any product
+
+8. Hostel dropdown should now show ALL hostels:
+   ✅ Mithali
+   ✅ Gavaskar
+   ✅ Tendulkar
+   ✅ Virat
+   ✅ Shyamji Auditorium
+   ✅ Other
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║                         📋 WHAT THIS SCRIPT DOES                         ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+✅ Creates 6 hostels in database
+✅ Fixes RLS policies (allows everyone to view hostels)
+✅ Creates hostel_stock table for inventory management
+✅ Sets up automatic sync with main website
+✅ Initializes stock records for all products in all hostels
+✅ Creates functions for stock adjustment and logging
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║                          🎯 AFTER RUNNING SCRIPT                         ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+✅ All hostels visible in dropdown
+✅ Stock can be managed per hostel
+✅ Changes sync to main website in real-time
+✅ Stock history tracks hostel information
+✅ Stock breakdown shows distribution across hostels
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║                            📖 MORE DETAILS                               ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+Read: HOSTEL_DROPDOWN_FIX.md for complete documentation
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║                          ⚠️ IMPORTANT NOTES                              ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+• Script is safe to run multiple times
+• Existing data will NOT be deleted
+• All products start with 0 stock in all hostels
+• Employees can immediately start managing stock
+• Stock changes are logged for audit trail
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║                         🐛 IF STILL NOT WORKING                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+1. Check browser console (F12) for errors
+2. Verify hostels exist:
+   SELECT * FROM hostels ORDER BY name;
+3. Check RLS policies:
+   SELECT * FROM pg_policies WHERE tablename = 'hostels';
+4. Contact me with console errors
+
+═══════════════════════════════════════════════════════════════════════════
+
+FILE TO RUN: sql/COMPLETE_HOSTEL_SETUP.sql
+CREATED: May 13, 2026
+STATUS: Ready to deploy ✅
+
+═══════════════════════════════════════════════════════════════════════════

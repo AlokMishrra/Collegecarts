@@ -758,6 +758,50 @@ export default function Cart() {
         return;
       }
 
+      // ⚡ STEP 1.5: VALIDATE STOCK BEFORE PROCEEDING
+      // This prevents orders for out-of-stock items
+      console.log('[Cart] Validating stock before checkout...');
+      
+      try {
+        // Import cart validation service
+        const { cartValidationService } = await import('@/services/cartValidationService');
+        
+        // Validate cart with auto-cleanup
+        const validation = await cartValidationService.validateBeforeCheckout(
+          user.id,
+          selectedHostel || user.selected_hostel || 'Other',
+          true // auto-clean cart
+        );
+
+        if (!validation.valid) {
+          console.error('[Cart] Stock validation failed:', validation);
+          
+          // Show error message
+          if (validation.outOfStock && validation.outOfStock.length > 0) {
+            toast.error('Some items are out of stock', {
+              description: 'Out-of-stock items have been removed from your cart'
+            });
+          }
+          
+          if (validation.insufficientStock && validation.insufficientStock.length > 0) {
+            toast.warning('Some items have limited stock', {
+              description: 'Quantities have been adjusted to available stock'
+            });
+          }
+
+          // Reload cart to show updated items
+          await loadCart(user.id);
+          
+          return; // Stop checkout process
+        }
+
+        console.log('[Cart] ✅ Stock validation passed');
+      } catch (error) {
+        console.error('[Cart] Error validating stock:', error);
+        toast.error('Failed to validate cart. Please try again.');
+        return;
+      }
+
       // Validate required fields BEFORE any async operations
       if (!customerName.trim()) {
         setFieldErrors(prev => ({ ...prev, name: "Please enter your name" }));

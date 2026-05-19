@@ -6,6 +6,7 @@ import { User } from "@/entities/User";
 import { Notification } from "@/entities/Notification";
 import { base44 } from "@/api/base44Client";
 import { notifyCartUpdate } from "@/utils/cartEvents";
+import { getProductHostelStock } from "@/utils/hostelStockHelper";
 import { ArrowLeft, ShoppingCart, Plus, Minus, Star, Heart } from "lucide-react";
 import ReviewSection from "../components/product/ReviewSection";
 import RecommendationEngine from "../components/shop/RecommendationEngine";
@@ -41,9 +42,21 @@ export default function ProductDetails() {
   }, []);
 
   useEffect(() => {
-    checkUser();
-    loadProduct();
+    const init = async () => {
+      await checkUser();
+      // Load product after user check completes
+      loadProduct();
+    };
+    init();
   }, []);
+
+  // Reload product when hostel changes
+  useEffect(() => {
+    if (user?.selected_hostel) {
+      console.log('[ProductDetails] Hostel changed, reloading product. Hostel:', user.selected_hostel);
+      loadProduct();
+    }
+  }, [user?.selected_hostel]);
 
   const isProductAvailableNow = (product) => {
     if (!product.available_from || !product.available_to) return true;
@@ -82,20 +95,24 @@ export default function ProductDetails() {
   };
 
   const getHostelStock = (product) => {
-    if (!user?.selected_hostel || user.selected_hostel === 'Other') {
-      return product.stock_quantity || 0;
+    // Use enriched hostel stock if available
+    if (product.hostel_stock_quantity !== undefined) {
+      console.log('[getHostelStock] Using hostel_stock_quantity:', product.hostel_stock_quantity);
+      return product.hostel_stock_quantity;
     }
-    if (product.hostel_stock && typeof product.hostel_stock[user.selected_hostel] === 'number') {
-      return product.hostel_stock[user.selected_hostel];
-    }
+    
+    // Fallback to total stock
+    console.log('[getHostelStock] Fallback to stock_quantity:', product.stock_quantity);
     return product.stock_quantity || 0;
   };
 
   const isProductInStock = (product) => {
     if (!isProductAvailableNow(product)) {
+      console.log('[isProductInStock] Product not available now (time restriction)');
       return false;
     }
     const hostelStock = getHostelStock(product);
+    console.log('[isProductInStock] Hostel stock:', hostelStock, 'In stock:', hostelStock > 0);
     return hostelStock > 0;
   };
 
@@ -103,8 +120,11 @@ export default function ProductDetails() {
     try {
       const currentUser = await User.me();
       setUser(currentUser);
+      return currentUser;
     } catch (error) {
       // User not logged in
+      setUser(null);
+      return null;
     }
   };
 
@@ -162,6 +182,7 @@ export default function ProductDetails() {
 
   const loadProduct = async () => {
     try {
+      setIsLoading(true);
       const urlParams = new URLSearchParams(window.location.search);
       const productId = urlParams.get('id');
       
@@ -170,13 +191,52 @@ export default function ProductDetails() {
         return;
       }
 
+      console.log('[ProductDetails] Loading product:', productId);
+
       const productData = await Product.filter({ id: productId });
       if (productData.length === 0) {
         navigate(createPageUrl('Shop'));
         return;
       }
 
-      const prod = productData[0];
+      let prod = productData[0];
+      
+      console.log('[ProductDetails] Loaded product:', prod.name);
+      console.log('[ProductDetails] Total stock from DB:', prod.stock_quantity);
+      
+      // Get current user (might be from state or need to fetch)
+      let currentUser = user;
+      if (!currentUser) {
+        try {
+          currentUser = await User.me();
+          setUser(currentUser);
+        } catch (error) {
+          // Not logged in, use total stock
+          console.log('[ProductDetails] No user logged in, using total stock');
+        }
+      }
+      
+      console.log('[ProductDetails] Current user hostel:', currentUser?.selected_hostel);
+      
+      // Enrich with hostel-specific stock
+      if (currentUser?.selected_hostel && currentUser.selected_hostel !== 'Other') {
+        console.log('[ProductDetails] Fetching hostel stock for:', currentUser.selected_hostel);
+        const hostelStock = await getProductHostelStock(prod.id, currentUser.selected_hostel);
+        console.log('[ProductDetails] Hostel stock received:', hostelStock);
+        prod = {
+          ...prod,
+          hostel_stock_quantity: hostelStock
+        };
+      } else {
+        console.log('[ProductDetails] Using total stock (no hostel or Other selected)');
+        prod = {
+          ...prod,
+          hostel_stock_quantity: prod.stock_quantity
+        };
+      }
+      
+      console.log('[ProductDetails] Final product stock:', prod.hostel_stock_quantity);
+      console.log('[ProductDetails] Product object:', prod);
       setProduct(prod);
 
       // Load category
@@ -188,15 +248,17 @@ export default function ProductDetails() {
       }
 
       // Load cart quantity if user is logged in
-      if (user) {
+      if (currentUser) {
         const cartItems = await CartItem.filter({ 
-          user_id: user.id, 
+          user_id: currentUser.id, 
           product_id: prod.id 
         });
         if (cartItems.length > 0) {
           setCartQuantity(cartItems[0].quantity);
+        } else {
+          setCartQuantity(0);
         }
-        checkWishlistStatus(user.id, prod.id);
+        checkWishlistStatus(currentUser.id, prod.id);
       }
 
       // Load reviews (graceful fallback if table doesn't exist)
@@ -215,8 +277,9 @@ export default function ProductDetails() {
     } catch (error) {
       console.error("Error loading product:", error);
       navigate(createPageUrl('Shop'));
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const addToCart = async () => {

@@ -48,6 +48,7 @@ export default function BulkProductUpdate() {
         const additionalHostels = hostelData
           .filter(h => h.is_active !== false)
           .filter(h => !defaultHostels.includes(h.name))
+          .filter(h => h.name !== "Other") // Exclude "Other" from database results
           .map(h => h.name);
         
         const allHostels = [...defaultHostels, ...additionalHostels, "Other"];

@@ -251,8 +251,12 @@
     </script>
   </head>
   <body>
-    <!-- Razorpay Checkout Script -->
-    <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+    <!-- Razorpay Checkout Script with Error Handling -->
+    <script 
+      src="https://checkout.razorpay.com/v1/checkout.js" 
+      defer
+      onerror="console.error('Razorpay script failed to load. Payment features may not work. Please check your internet connection.');"
+    ></script>
     
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

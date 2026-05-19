@@ -43,8 +43,10 @@
 import { supabase } from "@/lib/supabase";
 
 // ── TTL ───────────────────────────────────────────────────────────────────
-const FRESH_TTL          = 60  * 1000;  // 60s  — no network call
-const STALE_TTL          = 5   * 60 * 1000; // 5min — serve + revalidate bg
+// DISABLED CACHING FOR STOCK ACCURACY
+// Stock changes in real-time, caching causes out-of-stock items to show as available
+const FRESH_TTL          = 0;           // 0s   — ALWAYS fetch fresh (no cache)
+const STALE_TTL          = 0;           // 0s   — ALWAYS fetch fresh (no cache)
 const MAX_RETRIES        = 3;
 const BASE_BACKOFF_MS    = 1000;        // 1s, 2s, 4s
 const RATE_LIMIT_BACKOFF = 30_000;      // 30s cooldown on 429
@@ -73,12 +75,13 @@ const _state = {
 
 // ── Cache version — bump this when the edge function changes ──────────────
 // On mismatch the browser cache is discarded and a fresh fetch is forced.
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v6-no-cache-stock"; // CACHING DISABLED - Stock accuracy critical
 const _storedVersion = sessionStorage.getItem("cc_cache_version");
 if (_storedVersion !== CACHE_VERSION) {
   // Old cache is from a different version — discard it
   sessionStorage.setItem("cc_cache_version", CACHE_VERSION);
-  // _state is already null/0 on fresh module load, nothing else to clear
+  // Clear all cached data immediately
+  invalidateCache();
 }
 
 // ── Cache status ──────────────────────────────────────────────────────────
@@ -112,6 +115,7 @@ export function invalidateCache() {
   _state.inflight   = null;
   _state.lastEtag   = null;
   // intentionally keep failCount / rateLimitedAt — circuit-breaker state
+  console.log('[shopCache] Cache invalidated - will fetch fresh data');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────

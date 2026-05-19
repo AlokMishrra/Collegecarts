@@ -80,8 +80,10 @@ export default function ProductManagement() {
     }
   };
 
-  const handleSaveProduct = async (productData) => {
+  const handleSaveProduct = async (productData, hostelStockData) => {
     try {
+      let productId;
+      
       if (selectedProduct) {
         // Verify product still exists before updating
         const allProducts = await Product.list();
@@ -100,19 +102,56 @@ export default function ProductManagement() {
         }
         
         await Product.update(selectedProduct.id, productData);
+        productId = selectedProduct.id;
+        
         await showNotification(
           "Product Updated",
           `${productData.name} has been updated successfully`,
           "success"
         );
       } else {
-        await Product.create(productData);
+        const newProduct = await Product.create(productData);
+        productId = newProduct.id;
+        
         await showNotification(
           "Product Added",
           `${productData.name} has been added to your catalog`,
           "success"
         );
       }
+      
+      // Update hostel stock in hostel_stock table
+      if (hostelStockData && productId) {
+        const { supabase } = await import('@/lib/supabase');
+        
+        // Get hostel IDs
+        const { data: hostels, error: hostelsError } = await supabase
+          .from('hostels')
+          .select('id, name');
+        
+        if (!hostelsError && hostels) {
+          // Update each hostel's stock
+          for (const [hostelName, stockQty] of Object.entries(hostelStockData)) {
+            const hostel = hostels.find(h => h.name === hostelName);
+            if (hostel) {
+              const quantity = parseInt(stockQty) || 0;
+              
+              // Upsert hostel stock
+              await supabase
+                .from('hostel_stock')
+                .upsert({
+                  hostel_id: hostel.id,
+                  product_id: productId,
+                  stock_quantity: quantity,
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'hostel_id,product_id'
+                });
+            }
+          }
+        }
+      }
+      
       await loadData();
       setIsFormOpen(false);
       setSelectedProduct(null);

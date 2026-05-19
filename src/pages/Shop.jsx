@@ -11,6 +11,7 @@ import {
   getCacheStatus, getCachedData,
   deduplicatedFetch, invalidateCache,
 } from "@/utils/shopCache";
+import { enrichProductsWithHostelStock } from "@/utils/hostelStockHelper";
 import { toast } from "sonner";
 import { Building2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,7 @@ export default function Shop() {
   // ── Rate limiter state ────────────────────────────────────────────────
   const rateLimitRef = useRef({ count: 0, windowStart: Date.now() });
 
-  // ── Mount: load data + user (NO realtime for regular users) ──────────
+  // ── Mount: load data + user + REALTIME stock updates ──────────
   useEffect(() => {
     useSEO({
       title: "Shop – Groceries, Snacks & Essentials",
@@ -90,9 +91,53 @@ export default function Shop() {
     };
     window.addEventListener("storage", handleStorageChange);
 
+    // ═══════════════════════════════════════════════════════════════
+    // REALTIME: Listen for hostel_stock changes - INSTANT UPDATES
+    // Only reload if stock actually changes, not on every event
+    // ═══════════════════════════════════════════════════════════════
+    console.log('[Shop] Setting up Realtime subscription for hostel_stock');
+    
+    let reloadTimeout = null;
+    const hostelStockChannel = supabase
+      .channel('hostel_stock_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'hostel_stock'
+        },
+        (payload) => {
+          console.log('[Shop] ⚡ REALTIME: Hostel stock changed!', payload);
+          // Debounce reloads - wait 2 seconds before reloading
+          // This prevents multiple rapid reloads
+          if (reloadTimeout) clearTimeout(reloadTimeout);
+          reloadTimeout = setTimeout(() => {
+            console.log('[Shop] Reloading data after stock change...');
+            invalidateCache();
+            loadData(abortController.signal, true);
+          }, 2000);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Shop] ✅ Realtime subscription active - stock updates will be instant!');
+        } else {
+          console.log('[Shop] Realtime subscription status:', status);
+        }
+      });
+
     return () => {
       abortController.abort();
       window.removeEventListener("storage", handleStorageChange);
+      
+      // Clear reload timeout
+      if (reloadTimeout) clearTimeout(reloadTimeout);
+      
+      // Unsubscribe from realtime
+      console.log('[Shop] Unsubscribing from Realtime');
+      supabase.removeChannel(hostelStockChannel);
+      
       // Flush any pending debounced cart writes on unmount
       Object.values(pendingCart.current).forEach(p => {
         clearTimeout(p.timer);
@@ -101,6 +146,49 @@ export default function Shop() {
     };
   }, []);
 
+  // ── Reload data when hostel changes ───────────────────────────────────
+  // Use ref to track previous hostel to prevent unnecessary reloads
+  const prevHostelRef = useRef(user?.selected_hostel);
+  
+  useEffect(() => {
+    // Only reload if hostel actually changed (not on initial mount)
+    if (user?.selected_hostel && prevHostelRef.current !== user.selected_hostel && prevHostelRef.current !== undefined) {
+      console.log('[Shop] Hostel changed from', prevHostelRef.current, 'to', user.selected_hostel);
+      console.log('[Shop] Re-enriching products with new hostel stock...');
+      
+      // Update products in place without full reload
+      const reEnrichProducts = async () => {
+        // Get current products from state
+        setProducts(currentProducts => {
+          if (currentProducts.length === 0) return currentProducts;
+          
+          // Re-enrich asynchronously
+          enrichProductsWithHostelStock(currentProducts, user.selected_hostel).then(enriched => {
+            // Sort: in-stock first
+            const sorted = [...enriched].sort((a, b) => {
+              const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
+              const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
+              if (aS > 0 && bS === 0) return -1;
+              if (aS === 0 && bS > 0) return 1;
+              return (a.display_order || 0) - (b.display_order || 0);
+            });
+            
+            setProducts(sorted);
+            console.log('[Shop] Products re-enriched without full reload');
+          });
+          
+          // Return current products while enrichment happens
+          return currentProducts;
+        });
+      };
+      
+      reEnrichProducts();
+    }
+    
+    // Always update the ref
+    prevHostelRef.current = user?.selected_hostel;
+  }, [user?.selected_hostel]);
+
   // ── Group products by category (in-stock first per category) ─────────
   useEffect(() => {
     const categorized = {};
@@ -108,7 +196,9 @@ export default function Shop() {
       categorized[cat.id] = [...products]
         .filter(p => p.category_id === cat.id)
         .sort((a, b) => {
-          const aS = a.stock_quantity || 0, bS = b.stock_quantity || 0;
+          // Use hostel_stock_quantity if available, otherwise stock_quantity
+          const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
+          const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
           if (aS > 0 && bS === 0) return -1;
           if (aS === 0 && bS > 0) return 1;
           return (a.display_order || 0) - (b.display_order || 0);
@@ -161,23 +251,27 @@ export default function Shop() {
   };
 
   const handleHostelSelected = hostel => {
+    console.log('[Shop] Hostel selected:', hostel);
     setShowHostelSelector(false);
     setUser(prev => ({ ...prev, selected_hostel: hostel }));
-    invalidateCache();
-    loadData();
+    // The useEffect watching user.selected_hostel will handle the re-enrichment
+    // No need to invalidate cache or reload here
   };
 
   // ── Stock helpers ─────────────────────────────────────────────────────
   const getHostelStock = useCallback((product) => {
-    if (!user?.selected_hostel || user.selected_hostel === "Other")
-      return product.stock_quantity || 0;
-    if (product.hostel_stock && typeof product.hostel_stock[user.selected_hostel] === "number")
-      return product.hostel_stock[user.selected_hostel];
+    // Use enriched hostel stock if available
+    if (product.hostel_stock_quantity !== undefined) {
+      return product.hostel_stock_quantity;
+    }
+    
+    // Fallback to total stock
     return product.stock_quantity || 0;
-  }, [user]);
+  }, []);
 
   const isProductInStock = useCallback((product) => {
     const stock = getHostelStock(product);
+    
     if (product.available_from && product.available_to) {
       try {
         const now = new Date();
@@ -197,9 +291,12 @@ export default function Shop() {
         };
         const from = parse(product.available_from);
         const to   = parse(product.available_to);
-        if (from !== null && to !== null && !(cur >= from && cur <= to)) return false;
+        if (from !== null && to !== null && !(cur >= from && cur <= to)) {
+          return false;
+        }
       } catch { /* ignore */ }
     }
+    
     return stock > 0;
   }, [getHostelStock]);
 
@@ -214,58 +311,73 @@ export default function Shop() {
    * Fallback path: Direct DB (handled inside deduplicatedFetch)
    * All 10k users share the CDN response — DB hit ≤ 5 times/min.
    */
-  const applyData = useCallback((rawProducts, rawCategories) => {
-    // Sort all products: in-stock first, then by display_order.
-    // Do NOT filter by activeCatIds — that was silently dropping products
-    // whose category_id didn't match the is_active=true categories list.
-    // CategorySection only renders categories that have products, so
-    // products with no matching active category simply won't appear.
-    const sorted = [...rawProducts].sort((a, b) => {
-      const aS = a.stock_quantity || 0, bS = b.stock_quantity || 0;
+  const applyData = useCallback(async (rawProducts, rawCategories) => {
+    console.log('[Shop] ========================================');
+    console.log('[Shop] applyData called with', rawProducts.length, 'products');
+    console.log('[Shop] Current user hostel:', user?.selected_hostel);
+    
+    // CRITICAL: Fetch fresh hostel stock directly from database
+    let enrichedProducts = rawProducts;
+    if (user?.selected_hostel && user.selected_hostel !== 'Other') {
+      console.log('[Shop] 🔄 Enriching with hostel stock for:', user.selected_hostel);
+      
+      // Direct database query - ALWAYS FRESH
+      enrichedProducts = await enrichProductsWithHostelStock(rawProducts, user.selected_hostel);
+      
+      // Log detailed summary
+      const inStock = enrichedProducts.filter(p => (p.hostel_stock_quantity || 0) > 0);
+      const outOfStock = enrichedProducts.filter(p => (p.hostel_stock_quantity || 0) === 0);
+      
+      console.log(`[Shop] ✅ Enrichment complete:`);
+      console.log(`[Shop]    - ${inStock.length} products IN STOCK`);
+      console.log(`[Shop]    - ${outOfStock.length} products OUT OF STOCK`);
+      
+      // Log first 3 in-stock and first 3 out-of-stock for verification
+      console.log('[Shop] Sample IN STOCK products:');
+      inStock.slice(0, 3).forEach(p => {
+        console.log(`[Shop]    ✓ ${p.name}: hostel_stock=${p.hostel_stock_quantity}`);
+      });
+      
+      console.log('[Shop] Sample OUT OF STOCK products:');
+      outOfStock.slice(0, 3).forEach(p => {
+        console.log(`[Shop]    ✗ ${p.name}: hostel_stock=${p.hostel_stock_quantity}`);
+      });
+    } else {
+      console.log('[Shop] No hostel selected or Other, using total stock');
+      enrichedProducts = rawProducts.map(p => ({
+        ...p,
+        hostel_stock_quantity: p.stock_quantity || 0
+      }));
+    }
+    
+    // Sort all products: in-stock first, then by display_order
+    const sorted = [...enrichedProducts].sort((a, b) => {
+      const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
+      const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
       if (aS > 0 && bS === 0) return -1;
       if (aS === 0 && bS > 0) return 1;
       return (a.display_order || 0) - (b.display_order || 0);
     });
 
-    if (import.meta.env.DEV) {
-      const counts = {};
-      sorted.forEach(p => { counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
-      rawCategories.forEach(c =>
-        console.debug(`[Shop] "${c.name}": ${counts[c.id] || 0} products`)
-      );
-      console.debug(`[Shop] Total: ${sorted.length} products, ${rawCategories.length} categories`);
-    }
-
+    console.log('[Shop] Setting', sorted.length, 'products to state');
+    console.log('[Shop] ========================================');
+    
     setProducts(sorted);
     setCategories(rawCategories);
-  }, []);
+  }, [user?.selected_hostel]);
 
-  const loadData = useCallback(async (signal) => {
-    const status = getCacheStatus();
-
-    // Serve stale data immediately — zero perceived latency
-    if (status === "fresh" || status === "stale") {
-      const { products: p, categories: c } = getCachedData();
-      applyData(p, c);
-      setIsLoading(false);
-
-      if (status === "stale") {
-        // Revalidate silently in background
-        deduplicatedFetch()
-          .then(({ products: p2, categories: c2 }) => {
-            if (!signal?.aborted) applyData(p2, c2);
-          })
-          .catch(() => {}); // user already has stale data — silent fail
-      }
-      return;
+  const loadData = useCallback(async (signal, forceRefresh = false) => {
+    // Only invalidate cache if force refresh is requested
+    if (forceRefresh) {
+      invalidateCache();
+      console.log('[Shop] Cache invalidated - fetching fresh data');
     }
-
-    // Cache empty or expired — must fetch before showing content
+    
     setIsLoading(true);
     try {
       const { products: p, categories: c } = await deduplicatedFetch();
       if (signal?.aborted) return;
-      applyData(p, c);
+      await applyData(p, c);
     } catch (err) {
       if (signal?.aborted) return;
       await logErrorToDB("API", err.message, "/shop", err.stack).catch(() => {});
@@ -310,29 +422,68 @@ export default function Shop() {
    */
   const flushCartWrite = useCallback(async (productId, targetQty, existingItemId) => {
     delete pendingCart.current[productId];
+    
+    // Check if existingItemId is a temporary ID
+    const isTempId = existingItemId?.toString().startsWith("temp-");
+    
     try {
-      if (targetQty <= 0 && existingItemId) {
-        await CartItem.delete(existingItemId);
+      if (targetQty <= 0) {
+        // Deleting item
+        if (existingItemId && !isTempId) {
+          // Only delete if it's a real ID (not temporary)
+          await CartItem.delete(existingItemId);
+        } else {
+          // If it's a temp ID, just fetch existing items and delete if found
+          const existingItems = await CartItem.filter({
+            product_id: productId,
+            user_id: user.id
+          }).catch(() => []);
+          
+          if (existingItems && existingItems.length > 0) {
+            await CartItem.delete(existingItems[0].id);
+          }
+        }
         notifyCartUpdate();
-      } else if (existingItemId) {
+      } else if (existingItemId && !isTempId) {
+        // Updating existing item with real ID
         await CartItem.update(existingItemId, { quantity: targetQty });
         notifyCartUpdate();
-      } else if (targetQty > 0) {
-        const created = await CartItem.create({
+      } else {
+        // Creating new item or updating item with temp ID
+        // First check if item already exists in database
+        const existingItems = await CartItem.filter({
           product_id: productId,
-          user_id: user.id,
-          quantity: targetQty,
-        });
-        // Replace temp id with real id without triggering re-render
-        if (created) {
+          user_id: user.id
+        }).catch(() => []);
+        
+        if (existingItems && existingItems.length > 0) {
+          // Item already exists, update it
+          await CartItem.update(existingItems[0].id, { quantity: targetQty });
+          // Update local state with real id
           setCartItems(prev => prev.map(item =>
-            item.product_id === productId && item.id?.toString().startsWith("temp-")
-              ? { ...item, id: created.id }
+            item.product_id === productId
+              ? { ...item, id: existingItems[0].id, quantity: targetQty }
               : item
           ));
+        } else {
+          // Create new item
+          const created = await CartItem.create({
+            product_id: productId,
+            user_id: user.id,
+            quantity: targetQty,
+          });
+          // Replace temp id with real id
+          if (created) {
+            setCartItems(prev => prev.map(item =>
+              item.product_id === productId && item.id?.toString().startsWith("temp-")
+                ? { ...item, id: created.id }
+                : item
+            ));
+          }
         }
         notifyCartUpdate();
       }
+      
       // Silent background sync - don't reload immediately to prevent flicker
       setTimeout(() => {
         if (user?.id) loadCartItems(user.id);
@@ -350,13 +501,22 @@ export default function Shop() {
     if (!user) { navigate('/login'); return; }
     if (!checkRateLimit()) return;
 
+    // Get fresh hostel stock before allowing any add operation
+    const currentHostelStock = getHostelStock(product);
+    
+    // Block if trying to add and stock is 0
+    if (quantityChange > 0 && currentHostelStock <= 0) {
+      toast.error(`${product.name} is out of stock in your hostel`);
+      return;
+    }
+
     if (quantityChange > 0 && !isProductInStock(product)) {
       toast.error(`${product.name} is currently out of stock`);
       return;
     }
 
     const existingItem = cartItems.find(i => i.product_id === product.id);
-    const hostelStock  = getHostelStock(product);
+    const hostelStock  = currentHostelStock;
     const currentQty   = existingItem?.quantity ?? 0;
     const newQty       = currentQty + quantityChange;
 
@@ -394,6 +554,19 @@ export default function Shop() {
       }]);
       notifyCartUpdate();
     }
+
+    // ── Optimistic stock update in products list ──────────────
+    // Immediately reduce hostel stock in UI
+    setProducts(prev => prev.map(p => {
+      if (p.id === product.id && p.hostel_stock_quantity !== undefined) {
+        const newHostelStock = Math.max(0, p.hostel_stock_quantity - quantityChange);
+        return {
+          ...p,
+          hostel_stock_quantity: newHostelStock
+        };
+      }
+      return p;
+    }));
 
     // ── Debounced DB write ────────────────────────────────────
     const pending = pendingCart.current[product.id];

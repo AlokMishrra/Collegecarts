@@ -1,0 +1,43 @@
+🚨 EMPLOYEE NOT FOUND - CREATE IT NOW!
+=====================================
+
+The error says: "The result contains 0 rows"
+This means: Employee with email "apnafreelancer999@gmail.com" does NOT exist in database.
+
+SOLUTION:
+=========
+
+1. Open Supabase Dashboard
+   → Go to SQL Editor
+
+2. Run this file:
+   → sql/CREATE_EMPLOYEE_apnafreelancer999.sql
+
+3. You will see output:
+   ✓ EMPLOYEE CREATED!
+   
+   LOGIN CREDENTIALS:
+   Email: apnafreelancer999@gmail.com
+   Password: Test@123
+   Role: Super Admin
+
+4. Try login again:
+   → http://localhost:5173/employee/login
+   → Email: apnafreelancer999@gmail.com
+   → Password: Test@123
+
+5. You will be forced to change password on first login
+   → Choose a strong password
+   → Then you can access the dashboard
+
+THAT'S IT!
+==========
+
+The employee will be created with:
+- Super Admin role (full access)
+- Operations department
+- Active status
+- Temporary password: Test@123
+- Must change password on first login
+
+After running the SQL, login will work! 🎉
