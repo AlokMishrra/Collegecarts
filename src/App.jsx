@@ -19,6 +19,7 @@ import { DialogProvider } from '@/components/ui/alert-dialog-custom';
 import BottomTabBar from '@/components/layout/BottomTabBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import OfflineBanner from '@/components/shared/OfflineBanner';
 import AdminErrorPanel from '@/components/admin/AdminErrorPanel';
 
@@ -241,6 +242,7 @@ function App() {
               <Toaster />
               <SonnerToaster position="top-center" richColors />
               <VercelAnalytics />
+              <SpeedInsights />
               <VisualEditAgent />
             </QueryClientProvider>
           </AuthProvider>
