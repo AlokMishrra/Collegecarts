@@ -13,12 +13,37 @@ import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import RequireAuth from './components/RequireAuth';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { EmployeeAuthProvider } from '@/contexts/EmployeeAuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { DialogProvider } from '@/components/ui/alert-dialog-custom';
 import BottomTabBar from '@/components/layout/BottomTabBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import OfflineBanner from '@/components/shared/OfflineBanner';
 import AdminErrorPanel from '@/components/admin/AdminErrorPanel';
+
+// Employee System Imports
+import EmployeeLogin from '@/pages/employee/EmployeeLogin';
+import EmployeePasswordReset from '@/pages/employee/EmployeePasswordReset';
+import EmployeeLayout from '@/pages/employee/EmployeeLayout';
+import EmployeeDashboard from '@/pages/employee/EmployeeDashboard';
+import EmployeeProfile from '@/pages/employee/EmployeeProfile';
+import EmployeeSettings from '@/pages/employee/EmployeeSettings';
+import EmployeeAttendance from '@/pages/employee/EmployeeAttendance';
+import EmployeeSalary from '@/pages/employee/EmployeeSalary';
+import CreateStockOrder from '@/pages/employee/CreateStockOrder';
+import StockOrdersList from '@/pages/employee/StockOrdersList';
+import StockOrderDetails from '@/pages/employee/StockOrderDetails';
+import StockManager from '@/pages/employee/StockManager';
+import ManageEmployees from '@/pages/employee/ManageEmployees';
+import ManageDepartments from '@/pages/employee/ManageDepartments';
+import Deliveries from '@/pages/employee/Deliveries';
+import Finance from '@/pages/employee/Finance';
+import Analytics from '@/pages/employee/Analytics';
+import Support from '@/pages/employee/Support';
+import Inventory from '@/pages/employee/Inventory';
+import PayoutManagement from '@/pages/employee/PayoutManagement';
+import EmployeeAuthGuard from '@/components/EmployeeAuthGuard';
 
 // Lazy load heavy pages for better performance
 const Referral = lazy(() => import('./pages/Referral'));
@@ -151,6 +176,38 @@ const AuthenticatedApp = () => {
         </ProtectedRoute>
       } />
 
+      {/* ── Employee System Routes ── */}
+      <Route path="/employee/login" element={<EmployeeLogin />} />
+      <Route path="/employee/reset-password" element={<EmployeePasswordReset />} />
+      <Route path="/employee/forgot-password" element={<EmployeePasswordReset />} />
+      <Route 
+        path="/employee/:employeeSlug" 
+        element={
+          <EmployeeAuthGuard>
+            <EmployeeLayout />
+          </EmployeeAuthGuard>
+        }
+      >
+        <Route path="dashboard" element={<EmployeeDashboard />} />
+        <Route path="attendance" element={<EmployeeAttendance />} />
+        <Route path="salary" element={<EmployeeSalary />} />
+        <Route path="stock" element={<StockManager />} />
+        <Route path="stock-orders" element={<StockOrdersList />} />
+        <Route path="stock-orders/create" element={<CreateStockOrder />} />
+        <Route path="stock-orders/:id" element={<StockOrderDetails />} />
+        <Route path="manage/employees" element={<ManageEmployees />} />
+        <Route path="manage/departments" element={<ManageDepartments />} />
+        <Route path="deliveries" element={<Deliveries />} />
+        <Route path="finance" element={<Finance />} />
+        <Route path="payouts" element={<PayoutManagement />} />
+        <Route path="analytics" element={<Analytics />} />
+        <Route path="support" element={<Support />} />
+        <Route path="inventory" element={<Inventory />} />
+        <Route path="profile" element={<EmployeeProfile />} />
+        <Route path="profile/:viewEmployeeSlug" element={<EmployeeProfile />} />
+        <Route path="settings" element={<EmployeeSettings />} />
+      </Route>
+
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
@@ -172,19 +229,22 @@ function App() {
   return (
     <ErrorBoundary>
       <DialogProvider>
-        <AuthProvider>
-          <QueryClientProvider client={queryClientInstance}>
-            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <OfflineBanner />
-              <NavigationTracker />
-              <AuthenticatedApp />
-              <ConditionalBottomTabBar />
-            </Router>
-            <Toaster />
-            <SonnerToaster position="top-center" richColors />
-            <VisualEditAgent />
-          </QueryClientProvider>
-        </AuthProvider>
+        <EmployeeAuthProvider>
+          <AuthProvider>
+            <QueryClientProvider client={queryClientInstance}>
+              <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <OfflineBanner />
+                <NavigationTracker />
+                <AuthenticatedApp />
+                <ConditionalBottomTabBar />
+              </Router>
+              <Toaster />
+              <SonnerToaster position="top-center" richColors />
+              <VercelAnalytics />
+              <VisualEditAgent />
+            </QueryClientProvider>
+          </AuthProvider>
+        </EmployeeAuthProvider>
       </DialogProvider>
     </ErrorBoundary>
   )
