@@ -154,6 +154,8 @@ export class Entity {
     const fieldMap = {
       'created_date': 'created_at',
       'createdDate': 'created_at',
+      'updated_date': 'updated_at',
+      'updatedDate': 'updated_at',
     };
     return fieldMap[field] || field;
   }
@@ -190,6 +192,7 @@ export class Entity {
     return {
       ...row,
       created_date: row.created_at, // backward compat alias
+      updated_date: row.updated_at, // backward compat alias
     };
   }
 }
