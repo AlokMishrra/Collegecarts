@@ -35,7 +35,7 @@ export default function DeliveryPersonForm({ person, onSave, onCancel }) {
             .map(h => h.name);
           
           // Include default hostels, additional hostels, "Other", and "All"
-          const allHostels = [...defaultHostels, ...additionalHostels, "Other", "All"];
+          const allHostels = [...new Set([...defaultHostels, ...additionalHostels, "Other", "All"])];
           setHostels(allHostels);
         } catch (error) {
           console.error("Error loading hostels:", error);

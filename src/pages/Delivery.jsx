@@ -537,7 +537,7 @@ export default function Delivery() {
     }
 
     await Promise.all([
-      base44.entities.Order.update(orderId, { status: "cancelled", delivery_person_id: null, cancellation_reason: cancellationReason, cancelled_by: deliveryPerson.name }),
+      base44.entities.Order.update(orderId, { status: "cancelled", delivery_person_id: null }),
       base44.entities.DeliveryPerson.update(deliveryPerson.id, { current_orders: (deliveryPerson.current_orders || []).filter(id => id !== orderId) }),
       order && base44.entities.Notification.create({ user_id: order.user_id, title: "Order Cancelled", message: `Your order #${order.order_number} was cancelled. Reason: ${cancellationReason}`, type: "error" })
     ]).catch(() => {});
@@ -1327,6 +1327,15 @@ export default function Delivery() {
                               <div className="space-y-1 text-sm">
                                 <div className="flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-gray-400" /><span>{order.customer_name}</span></div>
                                 <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" /><span>{order.delivery_address}</span></div>
+                                <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-500">
+                                  {new Date(order.created_date || order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                  {' '}({(() => {
+                                    const mins = Math.floor((Date.now() - new Date(order.created_date || order.created_at).getTime()) / 60000);
+                                    if (mins < 1) return 'just now';
+                                    if (mins < 60) return `${mins} min ago`;
+                                    return `${Math.floor(mins / 60)}h ${mins % 60}m ago`;
+                                  })()})
+                                </span></div>
                               </div>
                               <p className="text-xl font-bold text-emerald-600 mt-2">₹{order.total_amount?.toFixed(2)}</p>
                               <p className="text-xs text-gray-500">+₹{(order.total_amount * 0.10).toFixed(2)} commission</p>
@@ -1591,9 +1600,27 @@ export default function Delivery() {
                             <p style={{
                               fontSize: '12px',
                               color: '#94A3B8',
-                              margin: '0 0 12px'
+                              margin: '0 0 4px'
                             }}>
                               {order.phone_number}
+                            </p>
+
+                            <p style={{
+                              fontSize: '12px',
+                              color: '#6B7280',
+                              margin: '0 0 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <Clock style={{ width: '12px', height: '12px', color: '#9CA3AF' }} />
+                              Ordered: {new Date(order.created_date || order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                              {' '}({(() => {
+                                const mins = Math.floor((Date.now() - new Date(order.created_date || order.created_at).getTime()) / 60000);
+                                if (mins < 1) return 'just now';
+                                if (mins < 60) return `${mins} min ago`;
+                                return `${Math.floor(mins / 60)}h ${mins % 60}m ago`;
+                              })()})
                             </p>
 
                             <div style={{
