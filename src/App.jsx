@@ -16,7 +16,6 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { EmployeeAuthProvider } from '@/contexts/EmployeeAuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { DialogProvider } from '@/components/ui/alert-dialog-custom';
-import BottomTabBar from '@/components/layout/BottomTabBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
@@ -61,6 +60,10 @@ import TermsConditions from './pages/TermsConditions';
 import RefundsCancellations from './pages/RefundsCancellations';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import AboutUs from './pages/AboutUs';
+import Meals from './pages/Meals';
+
+import { NavigationProvider } from '@/navigation/NavigationProvider';
+import { ModuleLayout } from '@/navigation';
 
 // Loading skeleton component
 const PageLoadingSkeleton = () => (
@@ -69,13 +72,23 @@ const PageLoadingSkeleton = () => (
   </div>
 );
 
-const { Pages, Layout, mainPage } = pagesConfig;
+const { Pages, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+const LayoutWrapper = ({ children }) => (
+  <ModuleLayout>{children}</ModuleLayout>
+);
+
+// Wraps children with NavigationProvider, passing user context
+const NavigationProviderWrapper = ({ children }) => {
+  const { user } = useAuth();
+  return (
+    <NavigationProvider user={user} employee={null}>
+      {children}
+    </NavigationProvider>
+  );
+};
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin } = useAuth();
@@ -111,12 +124,19 @@ const AuthenticatedApp = () => {
       <Route path="/PrivacyPolicy" element={<LayoutWrapper currentPageName="Privacy Policy"><PrivacyPolicy /></LayoutWrapper>} />
       <Route path="/privacy" element={<LayoutWrapper currentPageName="Privacy Policy"><PrivacyPolicy /></LayoutWrapper>} />
       <Route path="/AboutUs" element={<LayoutWrapper currentPageName="About Us"><AboutUs /></LayoutWrapper>} />
-      <Route path="/about" element={<LayoutWrapper currentPageName="About Us"><AboutUs /></LayoutWrapper>} />
+      <Route path="/about" element={<LayoutWrapper><AboutUs /></LayoutWrapper>} />
+
+      {/* ── Meals Module ── */}
+      <Route path="/meals" element={
+        <RequireAuth>
+          <LayoutWrapper><Meals /></LayoutWrapper>
+        </RequireAuth>
+      } />
 
       {/* ── Root — redirect to /Shop (RequireAuth handles login redirect) ── */}
       <Route path="/" element={
         <RequireAuth>
-          <LayoutWrapper currentPageName={mainPageKey}>
+          <LayoutWrapper >
             <MainPage />
           </LayoutWrapper>
         </RequireAuth>
@@ -131,7 +151,7 @@ const AuthenticatedApp = () => {
             path={`/${path}`}
             element={
               <RequireAuth>
-                <LayoutWrapper currentPageName={path}>
+                <LayoutWrapper >
                   {isLazyPage ? (
                     <Suspense fallback={<PageLoadingSkeleton />}>
                       <Page />
@@ -215,16 +235,6 @@ const AuthenticatedApp = () => {
 };
 
 
-// Only show BottomTabBar when authenticated and not on login/policy pages
-const HIDE_TABBAR_PATHS = ['/login', '/Login', '/contact', '/ContactUs', '/terms', '/TermsConditions', '/refunds', '/RefundsCancellations', '/privacy', '/PrivacyPolicy', '/about', '/AboutUs'];
-
-const ConditionalBottomTabBar = () => {
-  const { isAuthenticated, isLoadingAuth } = useAuth();
-  const location = useLocation();
-  const hide = isLoadingAuth || !isAuthenticated || HIDE_TABBAR_PATHS.includes(location.pathname);
-  if (hide) return null;
-  return <BottomTabBar />;
-};
 
 function App() {
   return (
@@ -234,10 +244,11 @@ function App() {
           <AuthProvider>
             <QueryClientProvider client={queryClientInstance}>
               <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <OfflineBanner />
-                <NavigationTracker />
-                <AuthenticatedApp />
-                <ConditionalBottomTabBar />
+                <NavigationProviderWrapper>
+                  <OfflineBanner />
+                  <NavigationTracker />
+                  <AuthenticatedApp />
+                </NavigationProviderWrapper>
               </Router>
               <Toaster />
               <SonnerToaster position="top-center" richColors />

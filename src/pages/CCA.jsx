@@ -44,6 +44,7 @@ import ProductManagement from "../components/admin/ProductManagement";
   import HostelManagement from "../components/admin/HostelManagement";
   import HostelPerformanceMetrics from "../components/admin/HostelPerformanceMetrics";
   import SubscriptionManagement from "../components/admin/SubscriptionManagement";
+  import MealManagement from "../components/admin/MealManagement";
   import ComboManagement from "../components/admin/ComboManagement";
   import BatchDeliveryManager from "../components/admin/BatchDeliveryManager";
   import AnalyticsDashboard from "../components/admin/AnalyticsDashboard";
@@ -356,7 +357,8 @@ export default function CCA() {
     { value: "settings", label: "Settings", permission: "manage_settings", component: <SettingsManagement /> },
     { value: "roles", label: "Roles", permission: "manage_roles", component: <RoleManagement /> },
     { value: "activity-log", label: "Activity Log", permission: "manage_settings", component: <ActivityLog /> },
-    { value: "subscriptions", label: "Subscriptions", permission: "manage_settings", component: <SubscriptionManagement /> }
+    { value: "subscriptions", label: "Subscriptions", permission: "manage_settings", component: <SubscriptionManagement /> },
+    { value: "meals", label: "🍱 Meals", permission: "manage_settings", component: <MealManagement /> }
   ];
 
   // Filter tabs based on permissions

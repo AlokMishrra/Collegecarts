@@ -450,7 +450,7 @@ export default function Shop() {
         notifyCartUpdate();
       } else {
         // Creating new item or updating item with temp ID
-        // First check if item already exists in database
+        // Use upsert to handle race conditions (prevents 409 duplicate key)
         const existingItems = await CartItem.filter({
           product_id: productId,
           user_id: user.id
@@ -466,12 +466,18 @@ export default function Shop() {
               : item
           ));
         } else {
-          // Create new item
-          const created = await CartItem.create({
-            product_id: productId,
-            user_id: user.id,
-            quantity: targetQty,
-          });
+          // Create new item - use upsert to prevent duplicate key error
+          const { data: created, error: createErr } = await supabase
+            .from('cart_items')
+            .upsert(
+              { product_id: productId, user_id: user.id, quantity: targetQty },
+              { onConflict: 'user_id,product_id' }
+            )
+            .select()
+            .single();
+          
+          if (createErr) throw createErr;
+          
           // Replace temp id with real id
           if (created) {
             setCartItems(prev => prev.map(item =>

@@ -1445,7 +1445,63 @@ export default function Delivery() {
                                 {statusConfig[order.status]?.label}
                               </span>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {/* Meal Order Badge with Type and Timing */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {/* Meal Order Badge */}
+                            {(() => {
+                              const mealKeywords = ['masala dosa', 'poha', 'veg pulao', 'oats upma', 'banana milkshake', 'dal tadka', 'chole bhature', 'veg thali', 'rajma chawal', 'samosa', 'bread pakora', 'vada pav', 'paneer butter masala', 'naan', 'biryani', 'roti'];
+                              const hasMeal = order.items?.some(item => 
+                                mealKeywords.some(kw => item.product_name?.toLowerCase().includes(kw))
+                              );
+                              if (!hasMeal) return null;
+                              
+                              // Determine meal type from items
+                              const breakfastItems = ['poha', 'masala dosa', 'veg pulao', 'oats upma', 'banana milkshake', 'idli', 'paratha'];
+                              const lunchItems = ['dal tadka', 'chole bhature', 'veg thali', 'rajma chawal', 'rice', 'roti + sabzi'];
+                              const snackItems = ['samosa', 'bread pakora', 'vada pav', 'chai', 'pakora'];
+                              const dinnerItems = ['paneer butter masala', 'naan', 'biryani', 'roti', 'dal makhani'];
+                              
+                              let mealType = 'Meal';
+                              const itemNames = order.items?.map(i => i.product_name?.toLowerCase()) || [];
+                              if (itemNames.some(n => breakfastItems.some(b => n?.includes(b)))) mealType = 'Breakfast';
+                              else if (itemNames.some(n => lunchItems.some(l => n?.includes(l)))) mealType = 'Lunch';
+                              else if (itemNames.some(n => snackItems.some(s => n?.includes(s)))) mealType = 'Snacks';
+                              else if (itemNames.some(n => dinnerItems.some(d => n?.includes(d)))) mealType = 'Dinner';
+                              
+                              const mealEmoji = mealType === 'Breakfast' ? '☕' : mealType === 'Lunch' ? '🍛' : mealType === 'Snacks' ? '🍿' : mealType === 'Dinner' ? '🌙' : '🍱';
+                              
+                              return (
+                                <>
+                                  <span style={{
+                                    background: '#fff3',
+                                    color: '#fff',
+                                    padding: '3px 8px',
+                                    borderRadius: '20px',
+                                    fontSize: '11px',
+                                    fontWeight: 800,
+                                    border: '1.5px solid rgba(255,255,255,0.6)'
+                                  }}>
+                                    {mealEmoji} {mealType.toUpperCase()}
+                                  </span>
+                                  {order.delivery_time && (
+                                    <span style={{
+                                      background: 'rgba(255,255,255,0.2)',
+                                      color: '#fff',
+                                      padding: '3px 8px',
+                                      borderRadius: '20px',
+                                      fontSize: '10px',
+                                      fontWeight: 700,
+                                      border: '1px solid rgba(255,255,255,0.4)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '3px'
+                                    }}>
+                                      🕐 {order.delivery_time}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                               {(order.payment_method === 'cash' || !order.is_paid) && (
                                 <span style={{
                                   background: 'rgba(255,255,255,0.25)',
@@ -1630,28 +1686,46 @@ export default function Delivery() {
                             }} />
 
                             <div style={{ marginBottom: '10px' }}>
-                              {order.items?.map((item, idx) => (
+                              {order.items?.map((item, idx) => {
+                                const mealKeywords = ['masala dosa', 'poha', 'veg pulao', 'oats upma', 'banana milkshake', 'dal tadka', 'chole bhature', 'veg thali', 'rajma chawal', 'samosa', 'bread pakora', 'vada pav', 'paneer butter masala', 'naan', 'biryani', 'roti'];
+                                const isMealItem = mealKeywords.some(kw => item.product_name?.toLowerCase().includes(kw));
+                                return (
                                 <div key={idx} style={{
                                   display: 'flex',
                                   justifyContent: 'space-between',
                                   alignItems: 'center',
-                                  padding: '5px 0'
+                                  padding: '6px 8px',
+                                  marginBottom: '4px',
+                                  borderRadius: '8px',
+                                  background: isMealItem ? '#fff7ed' : 'transparent',
+                                  border: isMealItem ? '1px solid #fed7aa' : 'none'
                                 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <div style={{
                                       width: '6px',
                                       height: '6px',
                                       borderRadius: '50%',
-                                      background: '#10b981',
+                                      background: isMealItem ? '#f97316' : '#10b981',
                                       flexShrink: 0
                                     }} />
+                                    {isMealItem && <span style={{ fontSize: '13px' }}>🍱</span>}
                                     <span style={{
                                       fontSize: '14px',
-                                      color: '#374151',
-                                      fontWeight: 500
+                                      color: isMealItem ? '#c2410c' : '#374151',
+                                      fontWeight: isMealItem ? 600 : 500
                                     }}>
                                       {item.product_name}
                                     </span>
+                                    {isMealItem && (
+                                      <span style={{
+                                        fontSize: '9px',
+                                        background: '#f97316',
+                                        color: '#fff',
+                                        padding: '1px 5px',
+                                        borderRadius: '20px',
+                                        fontWeight: 700
+                                      }}>MEAL</span>
+                                    )}
                                   </div>
                                   <span style={{
                                     fontSize: '13px',
@@ -1664,8 +1738,68 @@ export default function Delivery() {
                                     × {item.quantity}
                                   </span>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
+
+                            {/* Meal Delivery Timing Banner */}
+                            {order.delivery_time && (() => {
+                              const mealKeywords = ['masala dosa', 'poha', 'veg pulao', 'oats upma', 'banana milkshake', 'dal tadka', 'chole bhature', 'veg thali', 'rajma chawal', 'samosa', 'bread pakora', 'vada pav', 'paneer butter masala', 'naan', 'biryani', 'roti'];
+                              const hasMeal = order.items?.some(item => 
+                                mealKeywords.some(kw => item.product_name?.toLowerCase().includes(kw))
+                              );
+                              if (!hasMeal) return null;
+                              
+                              const breakfastItems = ['poha', 'masala dosa', 'veg pulao', 'oats upma', 'banana milkshake', 'idli', 'paratha'];
+                              const lunchItems = ['dal tadka', 'chole bhature', 'veg thali', 'rajma chawal', 'rice'];
+                              const snackItems = ['samosa', 'bread pakora', 'vada pav', 'chai'];
+                              const dinnerItems = ['paneer butter masala', 'naan', 'biryani', 'roti', 'dal makhani'];
+                              
+                              let mealType = 'Meal';
+                              const itemNames = order.items?.map(i => i.product_name?.toLowerCase()) || [];
+                              if (itemNames.some(n => breakfastItems.some(b => n?.includes(b)))) mealType = 'Breakfast';
+                              else if (itemNames.some(n => lunchItems.some(l => n?.includes(l)))) mealType = 'Lunch';
+                              else if (itemNames.some(n => snackItems.some(s => n?.includes(s)))) mealType = 'Snacks';
+                              else if (itemNames.some(n => dinnerItems.some(d => n?.includes(d)))) mealType = 'Dinner';
+                              
+                              const mealEmoji = mealType === 'Breakfast' ? '☕' : mealType === 'Lunch' ? '🍛' : mealType === 'Snacks' ? '🍿' : mealType === 'Dinner' ? '🌙' : '🍱';
+                              
+                              return (
+                                <div style={{
+                                  background: 'linear-gradient(135deg, #ecfdf5, #f0fdf4)',
+                                  border: '1.5px solid #86efac',
+                                  borderRadius: '10px',
+                                  padding: '10px 12px',
+                                  marginBottom: '12px',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '18px' }}>{mealEmoji}</span>
+                                    <div>
+                                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#166534' }}>
+                                        {mealType} Order
+                                      </p>
+                                      <p style={{ fontSize: '11px', color: '#15803d' }}>
+                                        Deliver between
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div style={{
+                                    background: '#fff',
+                                    border: '1.5px solid #22c55e',
+                                    borderRadius: '8px',
+                                    padding: '4px 10px',
+                                    textAlign: 'center'
+                                  }}>
+                                    <p style={{ fontSize: '13px', fontWeight: 800, color: '#166534' }}>
+                                      🕐 {order.delivery_time}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {order.delivery_notes && (
                               <div style={{

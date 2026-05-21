@@ -344,6 +344,17 @@ export default function Cart() {
       return;
     }
 
+    // Check stock limit
+    const item = cartItems.find(i => i.id === itemId);
+    if (item) {
+      const product = products[item.product_id];
+      const maxStock = product?.stock_quantity || 0;
+      if (newQuantity > maxStock) {
+        toast.error(`Only ${maxStock} available in stock`);
+        return;
+      }
+    }
+
     // Optimistic UI update - update local state immediately
     setCartItems(prev => prev.map(item => 
       item.id === itemId ? { ...item, quantity: newQuantity } : item
@@ -763,7 +774,42 @@ export default function Cart() {
       console.log('[Cart] Validating stock before checkout...');
       
       try {
-        // Import cart validation service
+        // Direct fresh stock check from database
+        const productIds = cartItems.map(item => item.product_id);
+        const { data: freshStock, error: stockErr } = await supabase
+          .from('products')
+          .select('id, name, stock_quantity')
+          .in('id', productIds);
+
+        if (!stockErr && freshStock) {
+          const outOfStockItems = [];
+          const overStockItems = [];
+
+          cartItems.forEach(item => {
+            const prod = freshStock.find(p => p.id === item.product_id);
+            if (!prod || (prod.stock_quantity || 0) <= 0) {
+              outOfStockItems.push(prod?.name || item.product_id);
+            } else if (item.quantity > (prod.stock_quantity || 0)) {
+              overStockItems.push({ name: prod.name, available: prod.stock_quantity });
+            }
+          });
+
+          if (outOfStockItems.length > 0) {
+            toast.error(`Out of stock: ${outOfStockItems.join(', ')}. Please remove these items.`);
+            // Refresh products data
+            await loadCart(user.id);
+            return;
+          }
+
+          if (overStockItems.length > 0) {
+            const msg = overStockItems.map(i => `${i.name} (only ${i.available} left)`).join(', ');
+            toast.error(`Insufficient stock: ${msg}. Please reduce quantity.`);
+            await loadCart(user.id);
+            return;
+          }
+        }
+
+        // Also run the cart validation service for hostel-specific stock
         const { cartValidationService } = await import('@/services/cartValidationService');
         
         // Validate cart with auto-cleanup
@@ -1371,22 +1417,53 @@ export default function Cart() {
                           )}
                           <div className="flex items-center justify-between mt-2">
                             <div className="flex items-center gap-1 sm:gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                className="h-6 w-6 sm:h-7 sm:w-7 rounded-sm"
-                              >
-                                <Minus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                              </Button>
-                              <span className="font-bold px-1.5 sm:px-2 text-xs sm:text-sm min-w-[20px] text-center">{item.quantity}</span>
-                              <Button
-                                size="icon"
-                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                className="h-6 w-6 sm:h-7 sm:w-7 bg-emerald-600 hover:bg-emerald-700 rounded-sm"
-                              >
-                                <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                              </Button>
+                              {(() => {
+                                const stockQty = product?.stock_quantity || 0;
+                                const isOutOfStock = stockQty <= 0;
+                                const atMaxStock = item.quantity >= stockQty;
+                                
+                                if (isOutOfStock) {
+                                  return (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded">Out of Stock</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeItem(item.id)}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 h-6 w-6"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  );
+                                }
+                                
+                                return (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                      className="h-6 w-6 sm:h-7 sm:w-7 rounded-sm"
+                                    >
+                                      <Minus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                    </Button>
+                                    <span className="font-bold px-1.5 sm:px-2 text-xs sm:text-sm min-w-[20px] text-center">{item.quantity}</span>
+                                    <Button
+                                      size="icon"
+                                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                      disabled={atMaxStock}
+                                      className={`h-6 w-6 sm:h-7 sm:w-7 rounded-sm ${atMaxStock ? 'bg-gray-300 cursor-not-allowed opacity-50' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                                      title={atMaxStock ? `Only ${stockQty} available` : ''}
+                                    >
+                                      <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                    </Button>
+                                    {atMaxStock && (
+                                      <span className="text-[9px] text-orange-600 ml-1">Max</span>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                             <div className="flex items-center gap-2">
                               <p className="font-bold text-xs sm:text-sm text-gray-900">₹{(getProductPrice(product) * item.quantity).toFixed(0)}</p>
