@@ -150,23 +150,35 @@ export const placeMealOrder = async (userId, mealType, items, hostel, roomNumber
  * Falls back to default slots if none configured
  */
 export const getDeliverySlots = async (mealType) => {
-  // Try to fetch from database first
+  // Try to fetch from database - match case-insensitively
   const { data, error } = await supabase
     .from('meal_delivery_slots')
     .select('*')
-    .eq('meal_type', mealType)
     .eq('is_active', true)
     .order('start_time');
   
   if (!error && data && data.length > 0) {
-    return data.map((slot, idx) => ({
-      id: slot.id || `${mealType}_${idx}`,
-      time: `${slot.start_time} - ${slot.end_time}`,
-      label: slot.start_time,
-      cutoff: slot.cutoff_time,
-      max_orders: slot.max_orders,
-      fee: slot.delivery_fee
-    }));
+    // Filter by meal_type case-insensitively
+    const filtered = data.filter(slot => 
+      slot.meal_type?.toLowerCase() === mealType?.toLowerCase()
+    );
+    
+    if (filtered.length > 0) {
+      return filtered.map((slot, idx) => {
+        // Convert 24h time to 12h AM/PM format
+        const startFormatted = formatTimeTo12h(slot.start_time);
+        const endFormatted = formatTimeTo12h(slot.end_time);
+        
+        return {
+          id: slot.id || `${mealType}_${idx}`,
+          time: `${startFormatted} - ${endFormatted}`,
+          label: startFormatted,
+          cutoff: slot.cutoff_time,
+          max_orders: slot.max_orders,
+          fee: slot.delivery_fee
+        };
+      });
+    }
   }
 
   // Fallback to default slots if none in database
@@ -204,6 +216,30 @@ export const getDeliverySlots = async (mealType) => {
   };
   return defaultSlots[mealType] || [];
 };
+
+/**
+ * Convert 24h time string (e.g. "07:30", "14:00", "19:00") to 12h AM/PM format
+ */
+function formatTimeTo12h(timeStr) {
+  if (!timeStr) return '';
+  // Handle formats like "07:30", "7:30", "07:30:00", "7.30", "07.30"
+  const cleaned = timeStr.replace('.', ':').split(':');
+  let hours = parseInt(cleaned[0], 10);
+  const minutes = cleaned[1] ? cleaned[1].padStart(2, '0') : '00';
+  
+  // If it already contains AM/PM, return as-is
+  if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+    return timeStr;
+  }
+  
+  if (isNaN(hours)) return timeStr;
+  
+  const period = hours >= 12 ? 'PM' : 'AM';
+  if (hours === 0) hours = 12;
+  else if (hours > 12) hours -= 12;
+  
+  return `${hours}:${minutes} ${period}`;
+}
 
 /**
  * Get the weekly menu for a specific day (for calendar view)

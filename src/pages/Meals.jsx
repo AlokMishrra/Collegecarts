@@ -550,14 +550,14 @@ export default function Meals() {
                 <button
                   key={slot.id}
                   onClick={() => setSelectedSlot(slot)}
-                  className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                  className={`p-3 rounded-lg border-2 text-xs font-medium transition-all ${
                     selectedSlot?.id === slot.id
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                       : 'border-gray-200 hover:border-gray-300 text-gray-700'
                   }`}
                 >
                   <Clock className="w-3.5 h-3.5 inline mr-1" />
-                  {slot.label}
+                  {slot.time}
                 </button>
               ))}
             </div>

@@ -795,11 +795,25 @@ export default function MealManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {deliverySlots.map(slot => (
+                  {deliverySlots.map(slot => {
+                    // Convert 24h to 12h AM/PM
+                    const to12h = (t) => {
+                      if (!t) return '';
+                      if (t.toLowerCase().includes('am') || t.toLowerCase().includes('pm')) return t;
+                      const parts = t.replace('.', ':').split(':');
+                      let h = parseInt(parts[0], 10);
+                      const m = parts[1] ? parts[1].padStart(2, '0') : '00';
+                      if (isNaN(h)) return t;
+                      const period = h >= 12 ? 'PM' : 'AM';
+                      if (h === 0) h = 12;
+                      else if (h > 12) h -= 12;
+                      return `${h}:${m} ${period}`;
+                    };
+                    return (
                     <TableRow key={slot.id}>
                       <TableCell><Badge variant="outline" className="capitalize">{slot.meal_type}</Badge></TableCell>
-                      <TableCell className="font-medium">{slot.start_time} - {slot.end_time}</TableCell>
-                      <TableCell className="text-orange-600 font-medium">{slot.cutoff_time}</TableCell>
+                      <TableCell className="font-medium">{to12h(slot.start_time)} - {to12h(slot.end_time)}</TableCell>
+                      <TableCell className="text-orange-600 font-medium">{to12h(slot.cutoff_time)}</TableCell>
                       <TableCell>{slot.max_orders}</TableCell>
                       <TableCell>{slot.current_orders || 0}</TableCell>
                       <TableCell>{slot.delivery_fee > 0 ? `₹${slot.delivery_fee}` : 'Free'}</TableCell>
@@ -834,7 +848,8 @@ export default function MealManagement() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
               {deliverySlots.length === 0 && <p className="text-center text-gray-400 py-8">No delivery slots configured</p>}
@@ -1459,9 +1474,45 @@ export default function MealManagement() {
               </Select>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>Start Time</Label><Input id="slot-start" placeholder="07:30" /></div>
-              <div><Label>End Time</Label><Input id="slot-end" placeholder="09:30" /></div>
-              <div><Label>Cutoff</Label><Input id="slot-cutoff" placeholder="07:00" /></div>
+              <div>
+                <Label>Start Time</Label>
+                <div className="flex gap-1">
+                  <Input id="slot-start-time" placeholder="7:30" className="w-20" />
+                  <Select defaultValue="AM">
+                    <SelectTrigger id="slot-start-ampm" className="w-20"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">AM</SelectItem>
+                      <SelectItem value="PM">PM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>End Time</Label>
+                <div className="flex gap-1">
+                  <Input id="slot-end-time" placeholder="9:30" className="w-20" />
+                  <Select defaultValue="AM">
+                    <SelectTrigger id="slot-end-ampm" className="w-20"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">AM</SelectItem>
+                      <SelectItem value="PM">PM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Cutoff</Label>
+                <div className="flex gap-1">
+                  <Input id="slot-cutoff-time" placeholder="7:00" className="w-20" />
+                  <Select defaultValue="AM">
+                    <SelectTrigger id="slot-cutoff-ampm" className="w-20"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AM">AM</SelectItem>
+                      <SelectItem value="PM">PM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Max Orders</Label><Input id="slot-max" type="number" defaultValue={50} /></div>
@@ -1469,14 +1520,33 @@ export default function MealManagement() {
             </div>
             <Button onClick={async () => {
               const meal_type = document.getElementById('slot-type')?.textContent?.toLowerCase() || 'breakfast';
-              const start_time = document.getElementById('slot-start').value;
-              const end_time = document.getElementById('slot-end').value;
-              const cutoff_time = document.getElementById('slot-cutoff').value;
+              const startTime = document.getElementById('slot-start-time').value;
+              const startAmpm = document.getElementById('slot-start-ampm')?.textContent || 'AM';
+              const endTime = document.getElementById('slot-end-time').value;
+              const endAmpm = document.getElementById('slot-end-ampm')?.textContent || 'AM';
+              const cutoffTime = document.getElementById('slot-cutoff-time').value;
+              const cutoffAmpm = document.getElementById('slot-cutoff-ampm')?.textContent || 'AM';
+              
+              if (!startTime || !endTime) { toast.error('Start and End times are required'); return; }
+              
+              // Convert to 24h for storage
+              const to24h = (time, ampm) => {
+                const parts = time.replace('.', ':').split(':');
+                let h = parseInt(parts[0], 10);
+                const m = parts[1] || '00';
+                if (ampm === 'PM' && h !== 12) h += 12;
+                if (ampm === 'AM' && h === 12) h = 0;
+                return `${String(h).padStart(2, '0')}:${m}`;
+              };
+              
+              const start_time = to24h(startTime, startAmpm);
+              const end_time = to24h(endTime, endAmpm);
+              const cutoff_time = cutoffTime ? to24h(cutoffTime, cutoffAmpm) : '';
               const max_orders = parseInt(document.getElementById('slot-max').value) || 50;
               const delivery_fee = parseInt(document.getElementById('slot-fee').value) || 0;
-              if (!start_time || !end_time) { toast.error('Times required'); return; }
+              
               await supabase.from('meal_delivery_slots').insert({ meal_type, start_time, end_time, cutoff_time, max_orders, delivery_fee });
-              toast.success('Slot added');
+              toast.success('Slot added successfully');
               setShowAddSlot(false);
               loadAll();
             }} className="w-full bg-emerald-600 hover:bg-emerald-700">Add Slot</Button>
