@@ -451,13 +451,12 @@ export default function Delivery() {
     const isCODPending = !order.is_paid && order.payment_method === "cash";
     // 10% commission on order amount
     const commission = Math.round((order.total_amount || 0) * 0.10);
-    // COD deduction only if cash was already collected (handled by handleCashCollection)
-    // Don't deduct here - it's already deducted in collect_cod_cash RPC
-    const codDeduction = 0;
+    // Don't touch wallet_balance here - COD deduction is handled by collect_cod_cash
+    // Commission goes to earnings only, not wallet
     const newTotalDeliveries = (freshPerson.total_deliveries || 0) + 1;
     const newTotalEarnings = (freshPerson.total_earnings || 0) + commission;
     const newLifetimeEarnings = (freshPerson.lifetime_earnings || 0) + commission;
-    const newWalletBalance = (freshPerson.wallet_balance || 0) + commission;
+    const newWalletBalance = freshPerson.wallet_balance || 0; // Don't change wallet here
 
     // ── Update UI instantly (optimistic) ─────────────────────────────────
     setAssignedOrders(prev => prev.filter(o => o.id !== order.id));
