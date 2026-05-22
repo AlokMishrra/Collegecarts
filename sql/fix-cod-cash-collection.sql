@@ -2,8 +2,9 @@
 -- FIX COD CASH COLLECTION
 -- When delivery person clicks "Got Cash":
 -- 1. Deduct FULL order amount from wallet (cash owed to admin)
--- 2. Add 10% commission to wallet separately
--- Net effect: wallet_balance = wallet_balance - order_amount + commission
+-- 2. Add 10% commission to earnings (tracked separately)
+-- Wallet shows: -₹40 (full amount owed)
+-- Earnings show: +₹4 (10% commission)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION collect_cod_cash(
@@ -20,9 +21,10 @@ BEGIN
 
   SELECT cod_held INTO current_held FROM delivery_persons WHERE id = p_partner_id FOR UPDATE;
 
-  -- Deduct full COD amount (cash owed to admin) and add commission
+  -- Deduct FULL COD amount from wallet (this is what they owe admin)
+  -- Commission is added to earnings separately, NOT to wallet
   UPDATE delivery_persons SET
-    wallet_balance = COALESCE(wallet_balance, 0) - p_amount + v_commission,
+    wallet_balance = COALESCE(wallet_balance, 0) - p_amount,
     cod_held = COALESCE(cod_held, 0) + p_amount,
     cod_held_since = CASE WHEN COALESCE(current_held, 0) = 0 THEN NOW() ELSE cod_held_since END,
     today_earnings = COALESCE(today_earnings, 0) + v_commission,
@@ -41,8 +43,7 @@ BEGIN
   RETURN json_build_object(
     'success', TRUE,
     'cod_amount', p_amount,
-    'commission', v_commission,
-    'net_deduction', p_amount - v_commission
+    'commission', v_commission
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
