@@ -787,7 +787,7 @@ export default function Delivery() {
   const handleCashCollection = async (order) => {
     setCodProcessing(prev => ({ ...prev, [order.id]: true }));
     try {
-      const { error } = await supabase.rpc('collect_cod_cash', {
+      const { data, error } = await supabase.rpc('collect_cod_cash', {
         p_partner_id: deliveryPerson.id,
         p_order_id: order.id,
         p_amount: order.total_amount
@@ -796,7 +796,8 @@ export default function Delivery() {
       setAssignedOrders(prev => prev.map(o => o.id === order.id ? { ...o, cod_collected: true, cod_collection_method: 'cash' } : o));
       const { data: fresh } = await supabase.from('delivery_persons').select('*').eq('id', deliveryPerson.id).single();
       if (fresh) { setDeliveryPerson(fresh); localStorage.setItem('deliveryPerson', JSON.stringify(fresh)); }
-      import('sonner').then(({ toast }) => { toast.success('💵 Cash collected. Submit to admin within 24 hours.'); });
+      const commission = Math.round(order.total_amount * 0.10);
+      import('sonner').then(({ toast }) => { toast.success(`💵 Cash ₹${order.total_amount} collected. Commission ₹${commission} added. Submit ₹${order.total_amount} to admin.`); });
     } catch (err) {
       console.error('Cash collection error:', err);
       import('sonner').then(({ toast }) => { toast.error('Failed to record cash collection. Try again.'); });

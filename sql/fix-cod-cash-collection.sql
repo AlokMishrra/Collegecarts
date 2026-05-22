@@ -1,0 +1,48 @@
+-- ============================================================
+-- FIX COD CASH COLLECTION
+-- When delivery person clicks "Got Cash":
+-- 1. Deduct FULL order amount from wallet (cash owed to admin)
+-- 2. Add 10% commission to wallet separately
+-- Net effect: wallet_balance = wallet_balance - order_amount + commission
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION collect_cod_cash(
+  p_partner_id UUID,
+  p_order_id UUID,
+  p_amount NUMERIC
+) RETURNS JSON AS $$
+DECLARE
+  current_held NUMERIC;
+  v_commission NUMERIC;
+BEGIN
+  -- Calculate 10% commission
+  v_commission := ROUND(p_amount * 0.10, 2);
+
+  SELECT cod_held INTO current_held FROM delivery_persons WHERE id = p_partner_id FOR UPDATE;
+
+  -- Deduct full COD amount (cash owed to admin) and add commission
+  UPDATE delivery_persons SET
+    wallet_balance = COALESCE(wallet_balance, 0) - p_amount + v_commission,
+    cod_held = COALESCE(cod_held, 0) + p_amount,
+    cod_held_since = CASE WHEN COALESCE(current_held, 0) = 0 THEN NOW() ELSE cod_held_since END,
+    today_earnings = COALESCE(today_earnings, 0) + v_commission,
+    total_earnings = COALESCE(total_earnings, 0) + v_commission,
+    lifetime_earnings = COALESCE(lifetime_earnings, 0) + v_commission
+  WHERE id = p_partner_id;
+
+  -- Mark order as COD collected
+  UPDATE orders SET
+    cod_collected = TRUE,
+    cod_collected_at = NOW(),
+    cod_collected_by = p_partner_id,
+    cod_collection_method = 'cash'
+  WHERE id = p_order_id;
+
+  RETURN json_build_object(
+    'success', TRUE,
+    'cod_amount', p_amount,
+    'commission', v_commission,
+    'net_deduction', p_amount - v_commission
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
