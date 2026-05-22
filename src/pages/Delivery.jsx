@@ -449,16 +449,15 @@ export default function Delivery() {
     const freshPerson = deliveryPerson;
 
     const isCODPending = !order.is_paid && order.payment_method === "cash";
-    const activeOrderCount = (freshPerson.current_orders || []).length;
-    const commissionTiers = [0, 8, 12, 15];
-    const prevTier = commissionTiers[Math.min(activeOrderCount, 3)];
-    const newTier = commissionTiers[Math.min(activeOrderCount + 1, 3)];
-    const commission = newTier - prevTier > 0 ? newTier - prevTier : 8;
-    const codDeduction = isCODPending ? order.total_amount : 0;
+    // 10% commission on order amount
+    const commission = Math.round((order.total_amount || 0) * 0.10);
+    // COD deduction only if cash was already collected (handled by handleCashCollection)
+    // Don't deduct here - it's already deducted in collect_cod_cash RPC
+    const codDeduction = 0;
     const newTotalDeliveries = (freshPerson.total_deliveries || 0) + 1;
     const newTotalEarnings = (freshPerson.total_earnings || 0) + commission;
     const newLifetimeEarnings = (freshPerson.lifetime_earnings || 0) + commission;
-    const newWalletBalance = (freshPerson.wallet_balance || 0) - codDeduction;
+    const newWalletBalance = (freshPerson.wallet_balance || 0) + commission;
 
     // ── Update UI instantly (optimistic) ─────────────────────────────────
     setAssignedOrders(prev => prev.filter(o => o.id !== order.id));
@@ -508,9 +507,9 @@ export default function Delivery() {
         ops.push(
           base44.entities.WalletTransaction.create({
             delivery_person_id: deliveryPerson.id,
-            amount: -codDeduction,
-            type: "cod_collection",
-            description: `COD cash collected for order #${order.order_number} — submit ₹${codDeduction.toFixed(2)} to admin`
+            amount: commission,
+            type: "delivery_earning",
+            description: `10% commission (₹${commission}) for COD order #${order.order_number}`
           })
         );
       }
