@@ -348,7 +348,10 @@ export default function Cart() {
     const item = cartItems.find(i => i.id === itemId);
     if (item) {
       const product = products[item.product_id];
-      const maxStock = product?.stock_quantity || 0;
+      // Use hostel stock if available, otherwise total stock
+      const maxStock = product?.hostel_stock_quantity !== undefined 
+        ? product.hostel_stock_quantity 
+        : (product?.stock_quantity || 0);
       if (newQuantity > maxStock) {
         toast.error(`Only ${maxStock} available in stock`);
         return;
@@ -774,12 +777,42 @@ export default function Cart() {
       console.log('[Cart] Validating stock before checkout...');
       
       try {
-        // Direct fresh stock check from database
+        // Direct fresh stock check from database - use hostel-specific stock
         const productIds = cartItems.map(item => item.product_id);
+        const userHostel = selectedHostel || user.selected_hostel || 'Other';
+        
+        // Get hostel ID first
+        let hostelId = null;
+        if (userHostel && userHostel !== 'Other') {
+          const { data: hostelData } = await supabase
+            .from('hostels')
+            .select('id')
+            .eq('name', userHostel)
+            .maybeSingle();
+          hostelId = hostelData?.id;
+        }
+        
+        // Fetch product info
         const { data: freshStock, error: stockErr } = await supabase
           .from('products')
           .select('id, name, stock_quantity')
           .in('id', productIds);
+
+        // Fetch hostel-specific stock if hostel is selected
+        let hostelStockMap = {};
+        if (hostelId) {
+          const { data: hostelStockData } = await supabase
+            .from('hostel_stock')
+            .select('product_id, stock_quantity')
+            .in('product_id', productIds)
+            .eq('hostel_id', hostelId);
+          
+          if (hostelStockData) {
+            hostelStockData.forEach(hs => {
+              hostelStockMap[hs.product_id] = hs.stock_quantity || 0;
+            });
+          }
+        }
 
         if (!stockErr && freshStock) {
           const outOfStockItems = [];
@@ -787,15 +820,25 @@ export default function Cart() {
 
           cartItems.forEach(item => {
             const prod = freshStock.find(p => p.id === item.product_id);
-            if (!prod || (prod.stock_quantity || 0) <= 0) {
-              outOfStockItems.push(prod?.name || item.product_id);
-            } else if (item.quantity > (prod.stock_quantity || 0)) {
-              overStockItems.push({ name: prod.name, available: prod.stock_quantity });
+            if (!prod) {
+              outOfStockItems.push(item.product_id);
+              return;
+            }
+            
+            // Use hostel stock if available, otherwise total stock
+            const availableStock = hostelId && hostelStockMap[item.product_id] !== undefined
+              ? hostelStockMap[item.product_id]
+              : (prod.stock_quantity || 0);
+            
+            if (availableStock <= 0) {
+              outOfStockItems.push(prod.name);
+            } else if (item.quantity > availableStock) {
+              overStockItems.push({ name: prod.name, available: availableStock });
             }
           });
 
           if (outOfStockItems.length > 0) {
-            toast.error(`Out of stock: ${outOfStockItems.join(', ')}. Please remove these items.`);
+            toast.error(`Out of stock in ${userHostel}: ${outOfStockItems.join(', ')}. Please remove these items.`);
             // Refresh products data
             await loadCart(user.id);
             return;
@@ -1418,7 +1461,9 @@ export default function Cart() {
                           <div className="flex items-center justify-between mt-2">
                             <div className="flex items-center gap-1 sm:gap-1.5">
                               {(() => {
-                                const stockQty = product?.stock_quantity || 0;
+                                const stockQty = product?.hostel_stock_quantity !== undefined 
+                                  ? product.hostel_stock_quantity 
+                                  : (product?.stock_quantity || 0);
                                 const isOutOfStock = stockQty <= 0;
                                 const atMaxStock = item.quantity >= stockQty;
                                 
