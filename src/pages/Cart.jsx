@@ -853,35 +853,23 @@ export default function Cart() {
         }
 
         // Also run the cart validation service for hostel-specific stock
-        const { cartValidationService } = await import('@/services/cartValidationService');
-        
-        // Validate cart with auto-cleanup
-        const validation = await cartValidationService.validateBeforeCheckout(
-          user.id,
-          selectedHostel || user.selected_hostel || 'Other',
-          true // auto-clean cart
-        );
+        // This is a secondary check - if it fails but Layer 1 passed, we still proceed
+        try {
+          const { cartValidationService } = await import('@/services/cartValidationService');
+          
+          const validation = await cartValidationService.validateBeforeCheckout(
+            user.id,
+            selectedHostel || user.selected_hostel || 'Other',
+            false // don't auto-clean - Layer 1 already validated
+          );
 
-        if (!validation.valid) {
-          console.error('[Cart] Stock validation failed:', validation);
-          
-          // Show error message
-          if (validation.outOfStock && validation.outOfStock.length > 0) {
-            toast.error('Some items are out of stock', {
-              description: 'Out-of-stock items have been removed from your cart'
-            });
+          if (!validation.valid) {
+            console.warn('[Cart] Secondary validation flagged issues (non-blocking):', validation);
+            // Don't block checkout - Layer 1 hostel stock check already passed
           }
-          
-          if (validation.insufficientStock && validation.insufficientStock.length > 0) {
-            toast.warning('Some items have limited stock', {
-              description: 'Quantities have been adjusted to available stock'
-            });
-          }
-
-          // Reload cart to show updated items
-          await loadCart(user.id);
-          
-          return; // Stop checkout process
+        } catch (validationErr) {
+          console.warn('[Cart] Secondary validation error (non-blocking):', validationErr);
+          // Don't block checkout on validation service errors
         }
 
         console.log('[Cart] ✅ Stock validation passed');
@@ -1097,18 +1085,43 @@ export default function Cart() {
       const productIds = cartItems.map(i => i.product_id);
       const { data: stockData, error: stockFetchErr } = await supabase
         .from('products')
-        .select('id, stock_quantity, hostel_stock')
+        .select('id, stock_quantity')
         .in('id', productIds);
 
       if (stockFetchErr) throw new Error('Failed to check stock: ' + stockFetchErr.message);
 
+      // Fetch hostel-specific stock from hostel_stock table
+      let hostelStockMap = {};
+      if (hostelForReservation) {
+        const { data: hostelData } = await supabase
+          .from('hostels')
+          .select('id')
+          .eq('name', hostelForReservation)
+          .maybeSingle();
+        
+        if (hostelData?.id) {
+          const { data: hsData } = await supabase
+            .from('hostel_stock')
+            .select('product_id, stock_quantity')
+            .in('product_id', productIds)
+            .eq('hostel_id', hostelData.id);
+          
+          if (hsData) {
+            hsData.forEach(hs => { hostelStockMap[hs.product_id] = hs.stock_quantity || 0; });
+          }
+        }
+      }
+
       const failedItems = cartItems.filter(item => {
         const prod = (stockData || []).find(p => p.id === item.product_id);
         if (!prod) return true;
-        let available = prod.stock_quantity || 0;
-        if (hostelForReservation && prod.hostel_stock &&
-            typeof prod.hostel_stock[hostelForReservation] === 'number') {
-          available = prod.hostel_stock[hostelForReservation];
+        
+        // Use hostel stock if available, otherwise total stock
+        let available;
+        if (hostelForReservation && hostelStockMap[item.product_id] !== undefined) {
+          available = hostelStockMap[item.product_id];
+        } else {
+          available = prod.stock_quantity || 0;
         }
         return available < item.quantity;
       });
