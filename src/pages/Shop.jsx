@@ -148,59 +148,46 @@ export default function Shop() {
 
   // ── Reload data when hostel changes ───────────────────────────────────
   // Use ref to track previous hostel to prevent unnecessary reloads
-  const prevHostelRef = useRef(user?.selected_hostel);
+  const prevHostelRef = useRef(null);
   
   useEffect(() => {
-    // Only reload if hostel actually changed (not on initial mount)
-    if (user?.selected_hostel && prevHostelRef.current !== user.selected_hostel && prevHostelRef.current !== undefined) {
-      console.log('[Shop] Hostel changed from', prevHostelRef.current, 'to', user.selected_hostel);
-      console.log('[Shop] Re-enriching products with new hostel stock...');
+    // Re-enrich when hostel is set or changes (including first time after user loads)
+    if (user?.selected_hostel && prevHostelRef.current !== user.selected_hostel && products.length > 0) {
+      console.log('[Shop] Hostel set/changed:', prevHostelRef.current, '→', user.selected_hostel);
+      console.log('[Shop] Re-enriching products with hostel stock...');
       
-      // Update products in place without full reload
-      const reEnrichProducts = async () => {
-        // Get current products from state
-        setProducts(currentProducts => {
-          if (currentProducts.length === 0) return currentProducts;
-          
-          // Re-enrich asynchronously
-          enrichProductsWithHostelStock(currentProducts, user.selected_hostel).then(enriched => {
-            // Sort: in-stock first
-            const sorted = [...enriched].sort((a, b) => {
-              const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
-              const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
-              if (aS > 0 && bS === 0) return -1;
-              if (aS === 0 && bS > 0) return 1;
-              return (a.display_order || 0) - (b.display_order || 0);
-            });
-            
-            setProducts(sorted);
-            console.log('[Shop] Products re-enriched without full reload');
-          });
-          
-          // Return current products while enrichment happens
-          return currentProducts;
+      // Re-enrich products with new hostel stock
+      enrichProductsWithHostelStock(products, user.selected_hostel).then(enriched => {
+        // Sort: in-stock first
+        const sorted = [...enriched].sort((a, b) => {
+          const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
+          const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
+          if (aS > 0 && bS === 0) return -1;
+          if (aS === 0 && bS > 0) return 1;
+          return (a.display_order || 0) - (b.display_order || 0);
         });
-      };
-      
-      reEnrichProducts();
+        
+        setProducts(sorted);
+        console.log('[Shop] Products re-enriched for hostel:', user.selected_hostel);
+      });
     }
     
     // Always update the ref
     prevHostelRef.current = user?.selected_hostel;
-  }, [user?.selected_hostel]);
+  }, [user?.selected_hostel, products.length]);
 
-  // ── Group products by category (ONLY show in-stock items) ─────────
+  // ── Group products by category (show all, out-of-stock at end with label) ─────────
   useEffect(() => {
     const categorized = {};
     categories.forEach(cat => {
       categorized[cat.id] = [...products]
         .filter(p => p.category_id === cat.id)
-        .filter(p => {
-          // Hide out-of-stock items from display
-          const stock = p.hostel_stock_quantity !== undefined ? p.hostel_stock_quantity : (p.stock_quantity || 0);
-          return stock > 0;
-        })
         .sort((a, b) => {
+          // In-stock items first, out-of-stock at end
+          const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
+          const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
+          if (aS > 0 && bS === 0) return -1;
+          if (aS === 0 && bS > 0) return 1;
           return (a.display_order || 0) - (b.display_order || 0);
         });
     });
@@ -611,12 +598,6 @@ export default function Shop() {
   const applyFiltersAndSort = useCallback((list) => {
     let out = [...list];
 
-    // ALWAYS hide out-of-stock items - use hostel stock if available
-    out = out.filter(p => {
-      const stock = p.hostel_stock_quantity !== undefined ? p.hostel_stock_quantity : (p.stock_quantity || 0);
-      return stock > 0;
-    });
-
     if (searchQuery.trim()) {
       const terms = searchQuery.toLowerCase().split(" ");
       out = out.filter(p => {
@@ -631,6 +612,15 @@ export default function Shop() {
       const min = parseFloat(filters.rating);
       out = out.filter(p => (p.average_rating || 0) >= min);
     }
+
+    // Sort: in-stock first, then out-of-stock
+    out.sort((a, b) => {
+      const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
+      const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
+      if (aS > 0 && bS === 0) return -1;
+      if (aS === 0 && bS > 0) return 1;
+      return 0;
+    });
 
     switch (sortBy) {
       case "price_low":  out.sort((a, b) => a.price - b.price); break;

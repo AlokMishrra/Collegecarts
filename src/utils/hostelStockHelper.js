@@ -122,28 +122,14 @@ export async function enrichProductsWithHostelStock(products, hostelName) {
   
   console.log('[enrichProductsWithHostelStock] Hostel stock map size:', Object.keys(hostelStockMap).length);
 
-  // If hostel stock map is empty, it means hostel_stock table has no data
-  // In this case, use total stock as fallback
-  const hasHostelData = Object.keys(hostelStockMap).length > 0;
-  
-  if (!hasHostelData) {
-    console.warn('[enrichProductsWithHostelStock] No hostel stock data found! Using total stock as fallback.');
-    console.warn('[enrichProductsWithHostelStock] Please run sql/COMPLETE_HOSTEL_SETUP.sql to initialize hostel stock.');
-  }
+  // When a hostel is selected, ONLY use hostel stock data
+  // If a product has no record in hostel_stock for this hostel, treat as 0 (out of stock)
+  // This ensures out-of-stock items in a hostel are never shown as available
 
   return products.map(product => {
+    // If product has a hostel stock record, use it. Otherwise it's 0 (not available in this hostel)
     const hostelStock = hostelStockMap[product.id];
-    const finalStock = hostelStock !== undefined ? hostelStock : (hasHostelData ? 0 : product.stock_quantity || 0);
-    
-    if (product.name === 'Doritos' || product.name.includes('Doritos')) {
-      console.log('[enrichProductsWithHostelStock] Doritos:', {
-        product_id: product.id,
-        total_stock: product.stock_quantity,
-        hostel_stock: hostelStock,
-        final_stock: finalStock,
-        has_hostel_data: hasHostelData
-      });
-    }
+    const finalStock = hostelStock !== undefined ? hostelStock : 0;
     
     return {
       ...product,
