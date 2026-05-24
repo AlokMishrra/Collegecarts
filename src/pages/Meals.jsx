@@ -241,8 +241,19 @@ export default function Meals() {
     setOrderingItem(item.id || item.name);
     
     try {
-      // Add to cart
       if (item.id) {
+        // Ensure meal item exists in products table (sync on-the-fly)
+        await supabase.from('products').upsert({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image_url: item.image_url || item.img || '',
+          stock_quantity: 999,
+          is_available: true,
+          description: `${activeMealTab.charAt(0).toUpperCase() + activeMealTab.slice(1)} - ${item.calories || item.kcal || 0} kcal`
+        }, { onConflict: 'id' });
+
+        // Add to cart
         const { data: existing } = await supabase
           .from('cart_items')
           .select('id, quantity')
