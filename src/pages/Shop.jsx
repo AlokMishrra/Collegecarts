@@ -189,18 +189,18 @@ export default function Shop() {
     prevHostelRef.current = user?.selected_hostel;
   }, [user?.selected_hostel]);
 
-  // ── Group products by category (in-stock first per category) ─────────
+  // ── Group products by category (ONLY show in-stock items) ─────────
   useEffect(() => {
     const categorized = {};
     categories.forEach(cat => {
       categorized[cat.id] = [...products]
         .filter(p => p.category_id === cat.id)
+        .filter(p => {
+          // Hide out-of-stock items from display
+          const stock = p.hostel_stock_quantity !== undefined ? p.hostel_stock_quantity : (p.stock_quantity || 0);
+          return stock > 0;
+        })
         .sort((a, b) => {
-          // Use hostel_stock_quantity if available, otherwise stock_quantity
-          const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
-          const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
-          if (aS > 0 && bS === 0) return -1;
-          if (aS === 0 && bS > 0) return 1;
           return (a.display_order || 0) - (b.display_order || 0);
         });
     });
@@ -611,6 +611,12 @@ export default function Shop() {
   const applyFiltersAndSort = useCallback((list) => {
     let out = [...list];
 
+    // ALWAYS hide out-of-stock items - use hostel stock if available
+    out = out.filter(p => {
+      const stock = p.hostel_stock_quantity !== undefined ? p.hostel_stock_quantity : (p.stock_quantity || 0);
+      return stock > 0;
+    });
+
     if (searchQuery.trim()) {
       const terms = searchQuery.toLowerCase().split(" ");
       out = out.filter(p => {
@@ -621,13 +627,6 @@ export default function Shop() {
     if (selectedCategory) out = out.filter(p => p.category_id === selectedCategory);
     out = out.filter(p => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]);
 
-    if (filters.availability === "in_stock") {
-      out = out.filter(p => {
-        if (user?.selected_hostel && user.selected_hostel !== "Other")
-          return (p.hostel_stock?.[user.selected_hostel] || 0) > 0;
-        return p.stock_quantity > 0;
-      });
-    }
     if (filters.rating !== "all") {
       const min = parseFloat(filters.rating);
       out = out.filter(p => (p.average_rating || 0) >= min);
