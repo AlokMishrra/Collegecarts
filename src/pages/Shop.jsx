@@ -93,7 +93,7 @@ export default function Shop() {
 
     // ═══════════════════════════════════════════════════════════════
     // REALTIME: Listen for hostel_stock changes - INSTANT UPDATES
-    // Only reload if stock actually changes, not on every event
+    // Only re-enrich products, don't do full reload
     // ═══════════════════════════════════════════════════════════════
     console.log('[Shop] Setting up Realtime subscription for hostel_stock');
     
@@ -109,13 +109,31 @@ export default function Shop() {
         },
         (payload) => {
           console.log('[Shop] ⚡ REALTIME: Hostel stock changed!', payload);
-          // Debounce reloads - wait 2 seconds before reloading
-          // This prevents multiple rapid reloads
+          // Debounce - wait 2 seconds then re-enrich existing products
           if (reloadTimeout) clearTimeout(reloadTimeout);
-          reloadTimeout = setTimeout(() => {
-            console.log('[Shop] Reloading data after stock change...');
-            invalidateCache();
-            loadData(abortController.signal, true);
+          reloadTimeout = setTimeout(async () => {
+            console.log('[Shop] Re-enriching products after stock change...');
+            // Get current user hostel from localStorage as fallback
+            const currentUser = JSON.parse(localStorage.getItem('sb-collegecart-auth') || '{}');
+            const hostel = user?.selected_hostel || currentUser?.user?.user_metadata?.selected_hostel;
+            
+            if (hostel && hostel !== 'Other') {
+              setProducts(prev => {
+                if (prev.length === 0) return prev;
+                // Re-enrich asynchronously
+                enrichProductsWithHostelStock(prev, hostel).then(enriched => {
+                  const sorted = [...enriched].sort((a, b) => {
+                    const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : 0;
+                    const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : 0;
+                    if (aS > 0 && bS === 0) return -1;
+                    if (aS === 0 && bS > 0) return 1;
+                    return (a.display_order || 0) - (b.display_order || 0);
+                  });
+                  setProducts(sorted);
+                });
+                return prev;
+              });
+            }
           }, 2000);
         }
       )
