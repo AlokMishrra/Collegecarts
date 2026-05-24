@@ -166,18 +166,38 @@ export default function Delivery() {
           if (freshPerson.is_blocked) {
             localStorage.removeItem('deliveryPerson');
           } else {
-            // Auto-offline: if COD cash has not been submitted for >24hr, force offline
+            // Auto-offline: if COD cash has not been submitted for >24hr AND shift has ended, force offline
             if (freshPerson.wallet_balance < 0 && freshPerson.is_available) {
-              const codTxns = await base44.entities.WalletTransaction.filter(
-                { delivery_person_id: freshPerson.id, type: "cod_collection" },
-                '-created_date', 1
-              ).catch(() => []);
-              if (codTxns.length > 0) {
-                const hoursSince = (Date.now() - new Date(codTxns[0].created_date).getTime()) / (1000 * 60 * 60);
-                if (hoursSince >= 24) {
-                  await base44.entities.DeliveryPerson.update(freshPerson.id, { is_available: false, current_shift: null });
-                  freshPerson = { ...freshPerson, is_available: false, current_shift: null };
+              let shouldForceOffline = false;
+              
+              // Only force offline if shift has already ended
+              const shiftStillActive = freshPerson.shift_end_time && new Date(freshPerson.shift_end_time) > new Date();
+              
+              if (!shiftStillActive) {
+                // Check cod_held_since first
+                if (freshPerson.cod_held_since) {
+                  const hoursSince = (Date.now() - new Date(freshPerson.cod_held_since).getTime()) / (1000 * 60 * 60);
+                  if (hoursSince >= 24) {
+                    shouldForceOffline = true;
+                  }
+                } else {
+                  // Fallback: check latest cod_collection transaction
+                  const codTxns = await base44.entities.WalletTransaction.filter(
+                    { delivery_person_id: freshPerson.id, type: "cod_collection" },
+                    '-created_date', 1
+                  ).catch(() => []);
+                  if (codTxns.length > 0) {
+                    const hoursSince = (Date.now() - new Date(codTxns[0].created_date).getTime()) / (1000 * 60 * 60);
+                    if (hoursSince >= 24) {
+                      shouldForceOffline = true;
+                    }
+                  }
                 }
+              }
+              
+              if (shouldForceOffline) {
+                await base44.entities.DeliveryPerson.update(freshPerson.id, { is_available: false, current_shift: null });
+                freshPerson = { ...freshPerson, is_available: false, current_shift: null };
               }
             }
             setDeliveryPerson(freshPerson);
@@ -228,9 +248,48 @@ export default function Delivery() {
     }
   }, [deliveryPerson?.id]);
 
-  // Check 24hr COD auto-offline rule
+  // Check 24hr COD auto-offline rule — only triggers AFTER shift ends naturally
+  // During active shift, delivery person can continue working
   const checkCODAutoOffline = useCallback(async (person) => {
+    // Don't force offline during active shift — let shift end naturally
+    // The blocking will happen when they try to go online for next shift
     if (!person || !person.is_available || (person.wallet_balance || 0) >= 0) return;
+    
+    // Only auto-offline if shift has already ended (shift_end_time passed)
+    if (person.shift_end_time) {
+      const shiftEnd = new Date(person.shift_end_time);
+      if (new Date() < shiftEnd) {
+        // Shift still active — don't force offline
+        return;
+      }
+    }
+    
+    // Shift ended or no shift time set — check if 24hr window expired
+    try {
+      const { data: partner } = await supabase
+        .from('delivery_persons')
+        .select('cod_held_since')
+        .eq('id', person.id)
+        .single();
+      
+      if (partner?.cod_held_since) {
+        const hoursSince = (Date.now() - new Date(partner.cod_held_since).getTime()) / (1000 * 60 * 60);
+        if (hoursSince >= 24) {
+          await base44.entities.DeliveryPerson.update(person.id, { is_available: false, current_shift: null });
+          const updated = { ...person, is_available: false, current_shift: null };
+          setDeliveryPerson(updated);
+          localStorage.setItem('deliveryPerson', JSON.stringify(updated));
+          import('sonner').then(({ toast }) => {
+            toast.error('Your 24-hour COD submission window expired. Submit cash to admin to go online again.', { duration: 10000 });
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      // fallback to transaction check
+    }
+    
+    // Fallback: check latest cod_collection transaction
     const codTxns = await base44.entities.WalletTransaction.filter(
       { delivery_person_id: person.id, type: "cod_collection" },
       '-created_date', 1
@@ -242,6 +301,9 @@ export default function Delivery() {
         const updated = { ...person, is_available: false, current_shift: null };
         setDeliveryPerson(updated);
         localStorage.setItem('deliveryPerson', JSON.stringify(updated));
+        import('sonner').then(({ toast }) => {
+          toast.error('Your 24-hour COD submission window expired. Submit cash to admin to go online again.', { duration: 10000 });
+        });
       }
     }
   }, []);
@@ -327,6 +389,7 @@ export default function Delivery() {
     // Always fetch fresh data from DB first — picks up any admin wallet resets
     let freshBalance = deliveryPerson.wallet_balance || 0;
     let freshCodHeld = 0;
+    let freshCodHeldSince = null;
     try {
       const { data: fresh } = await supabase
         .from('delivery_persons')
@@ -336,6 +399,7 @@ export default function Delivery() {
       if (fresh) {
         freshBalance = fresh.wallet_balance || 0;
         freshCodHeld = fresh.cod_held || 0;
+        freshCodHeldSince = fresh.cod_held_since;
         // Sync state with latest DB values
         const updated = { ...deliveryPerson, wallet_balance: freshBalance, cod_held: freshCodHeld };
         setDeliveryPerson(updated);
@@ -350,17 +414,35 @@ export default function Delivery() {
       // fallback to cached value
     }
 
-    // Check COD overdue (>24hr held) — blocks going online
+    // Check COD overdue (>24hr held) — only blocks going online after 24 hours
     const isOverdue = await checkCodSubmissionRequired();
     if (isOverdue) return;
 
+    // If wallet is negative but within 24 hours, allow going online with a reminder
     if (freshBalance < 0) {
-      await warning(
-        `You have ₹${Math.abs(freshBalance).toFixed(2)} in COD cash to submit. Please submit to admin first, then you can go online.`,
-        'COD Cash Pending'
-      );
-      setActiveTab("wallet");
-      return;
+      let hoursHeld = 0;
+      if (freshCodHeldSince) {
+        hoursHeld = (Date.now() - new Date(freshCodHeldSince).getTime()) / (1000 * 60 * 60);
+      }
+      
+      // Only block if 24 hours have passed
+      if (hoursHeld >= 24) {
+        await warning(
+          `You have ₹${Math.abs(freshBalance).toFixed(2)} in COD cash to submit. Your 24-hour window has expired. Please submit to admin first.`,
+          'COD Cash Overdue'
+        );
+        setActiveTab("wallet");
+        return;
+      }
+      
+      // Within 24 hours — show reminder but allow going online
+      const hoursLeft = Math.max(1, Math.ceil(24 - hoursHeld));
+      import('sonner').then(({ toast }) => {
+        toast.info(
+          `Reminder: Submit ₹${Math.abs(freshBalance).toFixed(2)} COD cash to admin within ${hoursLeft} hours.`,
+          { duration: 6000 }
+        );
+      });
     }
 
     setShowShiftSelector(true);
@@ -591,12 +673,16 @@ export default function Delivery() {
   };
 
   // ─── COD Submission Check ────────────────────────────────────────────────
+  // Delivery person has 24 hours from first COD collection (or until shift end)
+  // to submit cash. Only block AFTER 24 hours AND when they are NOT in an active shift.
+  // During an active shift, they can continue delivering — blocking happens when
+  // they try to start a new shift.
   const checkCodSubmissionRequired = async () => {
     if (!deliveryPerson?.id) return false;
     try {
       const { data: partner } = await supabase
         .from('delivery_persons')
-        .select('cod_held, cod_held_since, is_available, wallet_balance')
+        .select('cod_held, cod_held_since, is_available, wallet_balance, shift_end_time')
         .eq('id', deliveryPerson.id)
         .single();
 
@@ -607,33 +693,53 @@ export default function Delivery() {
         return false;
       }
 
+      // NEVER block during an active shift — let them finish their deliveries
+      if (partner.is_available) {
+        setCodOverdue(false);
+        setCodOverdueAmount(0);
+        return false;
+      }
+
       // wallet_balance is negative — use that as the actual amount owed
       const actualOwed = Math.abs(partner.wallet_balance);
 
-      if (!partner.cod_held || partner.cod_held <= 0 || !partner.cod_held_since) {
-        // No cod_held timing data, but wallet is negative — show overdue
-        setCodOverdue(true);
-        setCodOverdueAmount(actualOwed);
-        return true;
+      // Determine when the COD was first collected
+      let heldSince = null;
+      if (partner.cod_held_since) {
+        heldSince = new Date(partner.cod_held_since);
+      } else {
+        // Fallback: check the latest cod_collection transaction time
+        const { data: codTxns } = await supabase
+          .from('wallet_transactions')
+          .select('created_at')
+          .eq('delivery_person_id', deliveryPerson.id)
+          .eq('type', 'cod_collection')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (codTxns && codTxns.length > 0) {
+          heldSince = new Date(codTxns[0].created_at);
+        }
       }
 
-      const heldSince = new Date(partner.cod_held_since);
+      // If we can't determine when COD was collected, don't block
+      if (!heldSince) {
+        setCodOverdue(false);
+        setCodOverdueAmount(0);
+        return false;
+      }
+
       const hoursHeld = (Date.now() - heldSince.getTime()) / (1000 * 60 * 60);
 
+      // Only block after 24 hours have passed AND they are offline
       if (hoursHeld >= 24) {
         setCodOverdue(true);
         setCodOverdueAmount(actualOwed);
         return true;
       }
-      if (hoursHeld >= 20) {
-        const hoursLeft = Math.ceil(24 - hoursHeld);
-        import('sonner').then(({ toast }) => {
-          toast.warning(
-            `⚠️ Submit ₹${actualOwed.toFixed(2)} cash to admin within ${hoursLeft} hours or you cannot go online.`,
-            { duration: 10000 }
-          );
-        });
-      }
+
+      // Not overdue yet — delivery person still has time
+      setCodOverdue(false);
+      setCodOverdueAmount(0);
       return false;
     } catch (e) {
       return false;
@@ -1226,8 +1332,10 @@ export default function Delivery() {
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5" />
           <p className="text-sm text-orange-800">
-            {isNegativeBalance
-              ? `Submit ₹${Math.abs(walletBalance).toFixed(2)} COD cash first (Wallet tab), then select a shift to go online.`
+            {codOverdue
+              ? `Your 24-hour window expired. Submit ₹${Math.abs(walletBalance).toFixed(2)} COD cash or pay online to go online again.`
+              : isNegativeBalance
+              ? `You have ₹${Math.abs(walletBalance).toFixed(2)} COD cash pending. Remember to submit before 24 hours. Select a shift to go online.`
               : "Select a shift to start receiving orders."}
           </p>
         </div>
@@ -1249,13 +1357,13 @@ export default function Delivery() {
 
       {/* Negative Balance Warning */}
       {isNegativeBalance && (
-        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 flex items-center gap-3">
+          <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <div className="flex-1">
-            <p className="font-semibold text-red-800">Submit COD Cash: ₹{Math.abs(walletBalance).toFixed(2)}</p>
-            <p className="text-xs text-red-600 mt-0.5">You must settle this before accepting new orders.</p>
+            <p className="font-semibold text-amber-800">COD Cash Pending: ₹{Math.abs(walletBalance).toFixed(2)}</p>
+            <p className="text-xs text-amber-600 mt-0.5">Submit to admin within 24 hours or before your shift ends.</p>
           </div>
-          <Button size="sm" onClick={() => setActiveTab("wallet")} className="bg-red-600 hover:bg-red-700 text-white">
+          <Button size="sm" onClick={() => setActiveTab("wallet")} className="bg-amber-600 hover:bg-amber-700 text-white">
             Wallet <ChevronRight className="w-3 h-3 ml-1" />
           </Button>
         </div>
