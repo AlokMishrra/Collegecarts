@@ -319,15 +319,32 @@ export default function Shop() {
   const applyData = useCallback(async (rawProducts, rawCategories) => {
     console.log('[Shop] ========================================');
     console.log('[Shop] applyData called with', rawProducts.length, 'products');
-    console.log('[Shop] Current user hostel:', user?.selected_hostel);
+    
+    // Get hostel from state OR localStorage (for when component re-mounts)
+    let hostel = user?.selected_hostel;
+    if (!hostel) {
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('selected_hostel')
+            .eq('id', authUser.id)
+            .maybeSingle();
+          hostel = profile?.selected_hostel;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    
+    console.log('[Shop] Using hostel:', hostel);
     
     // CRITICAL: Fetch fresh hostel stock directly from database
     let enrichedProducts = rawProducts;
-    if (user?.selected_hostel && user.selected_hostel !== 'Other') {
-      console.log('[Shop] 🔄 Enriching with hostel stock for:', user.selected_hostel);
+    if (hostel && hostel !== 'Other') {
+      console.log('[Shop] 🔄 Enriching with hostel stock for:', hostel);
       
       // Direct database query - ALWAYS FRESH
-      enrichedProducts = await enrichProductsWithHostelStock(rawProducts, user.selected_hostel);
+      enrichedProducts = await enrichProductsWithHostelStock(rawProducts, hostel);
       
       // Log detailed summary
       const inStock = enrichedProducts.filter(p => (p.hostel_stock_quantity || 0) > 0);
