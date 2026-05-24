@@ -514,7 +514,8 @@ export default function MealManagement() {
                   {filteredMenu.map(item => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        {item.image_url ? <img src={item.image_url} className="w-10 h-10 rounded-lg object-cover" /> : <div className="w-10 h-10 bg-gray-100 rounded-lg" />}
+                        {item.image_url ? <img src={item.image_url} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} /> : null}
+                        <div className={`w-10 h-10 bg-gray-100 rounded-lg items-center justify-center text-gray-400 text-xs ${item.image_url ? 'hidden' : 'flex'}`}>No img</div>
                       </TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell><Badge variant="outline">{item.meal_type}</Badge></TableCell>
@@ -1325,7 +1326,20 @@ export default function MealManagement() {
               <div><Label>Calories</Label><Input type="number" value={menuForm.calories} onChange={e => setMenuForm(p => ({...p, calories: parseInt(e.target.value) || 0}))} /></div>
               <div><Label>Price (₹)</Label><Input type="number" value={menuForm.price} onChange={e => setMenuForm(p => ({...p, price: parseInt(e.target.value) || 0}))} /></div>
             </div>
-            <div><Label>Image URL</Label><Input value={menuForm.image_url} onChange={e => setMenuForm(p => ({...p, image_url: e.target.value}))} placeholder="https://..." /></div>
+            <div>
+              <Label>Image URL</Label>
+              <Input value={menuForm.image_url} onChange={e => setMenuForm(p => ({...p, image_url: e.target.value.trim()}))} placeholder="https://..." />
+              {menuForm.image_url && (
+                <div className="mt-2">
+                  <img 
+                    src={menuForm.image_url} 
+                    className="w-16 h-16 rounded-lg object-cover border" 
+                    onError={(e) => { e.target.src = 'https://placehold.co/64x64/fee2e2/ef4444?text=Invalid'; }}
+                    alt="Preview"
+                  />
+                </div>
+              )}
+            </div>
             <Button onClick={saveMenuItem} className="w-full bg-emerald-600 hover:bg-emerald-700">{editingItem ? 'Update' : 'Add'} Item</Button>
           </div>
         </DialogContent>

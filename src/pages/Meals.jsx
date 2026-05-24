@@ -459,10 +459,11 @@ export default function Meals() {
           {(menuItems[activeMealTab] || []).map((item, i) => (
             <div key={item.id || i} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
               <img 
-                src={item.image_url || item.img} 
+                src={item.image_url || item.img || '/placeholder-food.png'} 
                 alt={item.name}
-                className="w-14 h-14 rounded-xl object-cover"
+                className="w-14 h-14 rounded-xl object-cover bg-gray-100"
                 loading="lazy"
+                onError={(e) => { e.target.src = 'https://placehold.co/56x56/f3f4f6/9ca3af?text=🍽️'; }}
               />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 text-sm truncate">{item.name}</p>
