@@ -551,15 +551,7 @@ export default function Delivery() {
 
     // ── Fire all DB writes in background (non-blocking) ──────────────────
     const dbWrites = async () => {
-      // Stock reduction — atomic RPC with hostel support
-      try {
-        const stockResult = await deductStockOnDelivery(order);
-        if (!stockResult.success) {
-          console.error(`[Delivery] Stock deduction had errors for order ${order.order_number}:`, stockResult.errors);
-        }
-      } catch (err) {
-        console.error(`[Delivery] Stock deduction failed for order ${order.order_number}:`, err);
-      }
+      // Stock is already deducted when order is placed — no need to deduct again on delivery
 
       const ops = [
         base44.entities.Order.update(order.id, { status: "delivered" }),

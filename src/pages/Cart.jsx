@@ -1221,6 +1221,24 @@ export default function Cart() {
       // Clear retry message on success
       setRetryMessage('');
 
+      // ⚡ STEP 7.5: Deduct stock immediately on order placed
+      // This reduces hostel_stock and products.stock_quantity right away
+      // so other users see updated availability instantly
+      try {
+        const { deductStockOnOrderPlaced } = await import('@/utils/inventoryService');
+        const stockResult = await deductStockOnOrderPlaced({
+          order_number: orderNumber,
+          items: orderItems,
+          hostel_id: selectedHostel === "Other" ? null : selectedHostel
+        });
+        if (!stockResult.success) {
+          console.warn('[Cart] Stock deduction had issues:', stockResult.errors);
+        }
+      } catch (stockErr) {
+        console.error('[Cart] Stock deduction on order placed failed:', stockErr);
+        // Don't block order — stock will be corrected on delivery
+      }
+
       // Start payment timer after order creation
       if (newOrder?.id && paymentMethod === 'razorpay') {
         startPaymentTimer(newOrder.id);

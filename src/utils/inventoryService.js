@@ -239,19 +239,55 @@ async function directReservationRelease(item) {
 
   if (fetchErr || !prod) return; // Silently skip if product gone
 
+  // Restore stock_quantity (since we deducted on order placement)
+  const newStock = (prod.stock_quantity || 0) + item.quantity;
   const newReserved = Math.max(0, (prod.reserved_stock || 0) - item.quantity);
 
   const { error: updateErr } = await supabase
     .from('products')
     .update({
+      stock_quantity: newStock,
       reserved_stock: newReserved,
-      is_available: prod.stock_quantity > 0,
+      is_available: true,
       updated_at: new Date().toISOString()
     })
     .eq('id', item.product_id);
 
   if (updateErr) {
     console.error(`[Inventory] Direct reservation release failed for ${item.product_id}:`, updateErr.message);
+  }
+
+  // Also restore hostel_stock table if hostel info available
+  if (item.hostel && item.hostel !== 'Other') {
+    try {
+      const { data: hostelData } = await supabase
+        .from('hostels')
+        .select('id')
+        .eq('name', item.hostel)
+        .maybeSingle();
+
+      if (hostelData?.id) {
+        const { data: hsRow } = await supabase
+          .from('hostel_stock')
+          .select('stock_quantity')
+          .eq('product_id', item.product_id)
+          .eq('hostel_id', hostelData.id)
+          .maybeSingle();
+
+        if (hsRow) {
+          await supabase
+            .from('hostel_stock')
+            .update({
+              stock_quantity: (hsRow.stock_quantity || 0) + item.quantity,
+              updated_at: new Date().toISOString()
+            })
+            .eq('product_id', item.product_id)
+            .eq('hostel_id', hostelData.id);
+        }
+      }
+    } catch (e) {
+      console.error('[Inventory] Failed to restore hostel_stock on cancel:', e);
+    }
   }
 }
 
@@ -263,4 +299,125 @@ export function notifyStockErrors(result, context = 'Stock operation') {
   if (!result.success && result.errors?.length > 0) {
     toast.error(`${context} had ${result.errors.length} error(s). Check console for details.`);
   }
+}
+
+// ─── Deduct Stock on Order Placed ────────────────────────────────────────
+/**
+ * Deduct stock immediately when an order is PLACED/CONFIRMED.
+ * Reduces both hostel_stock table and products.stock_quantity.
+ * This ensures stock shows correctly for other users right away.
+ *
+ * @param {Object} order - Order object with items[] and hostel_id (hostel name)
+ * @returns {Promise<{success: boolean, results: Array, errors: Array}>}
+ */
+export async function deductStockOnOrderPlaced(order) {
+  if (!order) {
+    console.warn('[Inventory] deductStockOnOrderPlaced called with null order');
+    return { success: true, results: [], errors: [] };
+  }
+
+  if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
+    console.warn(`[Inventory] Order ${order.order_number || order.id} has no items — skipping`);
+    return { success: true, results: [], errors: [] };
+  }
+
+  const hostelName = order.hostel_id || null; // hostel_id stores the hostel name
+  const results = [];
+  const errors = [];
+
+  for (const item of order.items) {
+    if (!item.product_id || !item.quantity) continue;
+
+    try {
+      // Try the RPC first
+      const { data, error } = await supabase.rpc('deduct_stock_on_order', {
+        p_product_id: item.product_id,
+        p_quantity: item.quantity,
+        p_hostel_name: hostelName
+      });
+
+      if (error) {
+        // RPC doesn't exist yet — use direct fallback
+        if (error.message?.includes('function') || error.code === '42883') {
+          console.warn('[Inventory] deduct_stock_on_order RPC not found, using direct fallback');
+          await directStockDeductionOnOrder(item, hostelName);
+          results.push({ product_id: item.product_id, method: 'direct', success: true });
+          continue;
+        }
+        errors.push(`Stock deduction failed for ${item.product_name || item.product_id}: ${error.message}`);
+        continue;
+      }
+
+      const rpcResult = typeof data === 'string' ? JSON.parse(data) : data;
+      if (rpcResult?.success) {
+        console.log(`[Inventory] ✅ Order placed: deducted ${item.quantity}x ${item.product_name || item.product_id}. Hostel stock: ${rpcResult.new_hostel_stock}`);
+        results.push({ product_id: item.product_id, new_stock: rpcResult.new_hostel_stock, success: true });
+      } else {
+        errors.push(`Stock deduction rejected for ${item.product_name || item.product_id}: ${rpcResult?.error}`);
+      }
+    } catch (err) {
+      errors.push(`Unexpected error for ${item.product_id}: ${err.message}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error(`[Inventory] Stock deduction errors on order placed:`, errors);
+  }
+
+  return { success: errors.length === 0, results, errors };
+}
+
+/**
+ * Direct fallback for stock deduction on order placed (when RPC not available).
+ * Deducts from hostel_stock table + products.stock_quantity.
+ */
+async function directStockDeductionOnOrder(item, hostelName) {
+  // 1. Deduct from hostel_stock table
+  if (hostelName && hostelName !== 'Other') {
+    // Get hostel ID
+    const { data: hostelData } = await supabase
+      .from('hostels')
+      .select('id')
+      .eq('name', hostelName)
+      .maybeSingle();
+
+    if (hostelData?.id) {
+      const { data: hsRow } = await supabase
+        .from('hostel_stock')
+        .select('stock_quantity')
+        .eq('product_id', item.product_id)
+        .eq('hostel_id', hostelData.id)
+        .maybeSingle();
+
+      if (hsRow) {
+        const newQty = Math.max(0, (hsRow.stock_quantity || 0) - item.quantity);
+        await supabase
+          .from('hostel_stock')
+          .update({ stock_quantity: newQty, updated_at: new Date().toISOString() })
+          .eq('product_id', item.product_id)
+          .eq('hostel_id', hostelData.id);
+      }
+    }
+  }
+
+  // 2. Deduct from products.stock_quantity
+  const { data: prod } = await supabase
+    .from('products')
+    .select('stock_quantity')
+    .eq('id', item.product_id)
+    .single();
+
+  if (prod) {
+    const newTotal = Math.max(0, (prod.stock_quantity || 0) - item.quantity);
+    await supabase
+      .from('products')
+      .update({
+        stock_quantity: newTotal,
+        is_available: newTotal > 0,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', item.product_id);
+  }
+
+  console.log(`[Inventory] ✅ Direct fallback: deducted ${item.quantity}x ${item.product_name || item.product_id} on order placed`);
 }
