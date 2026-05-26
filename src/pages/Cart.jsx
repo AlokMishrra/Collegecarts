@@ -534,6 +534,18 @@ export default function Cart() {
     return item ? item.quantity : 0;
   };
 
+  // Check if any cart item is out of stock
+  const hasOutOfStockItems = useCallback(() => {
+    return cartItems.some(item => {
+      const product = products[item.product_id];
+      if (!product) return true; // Product not found = treat as out of stock
+      const stockQty = product.hostel_stock_quantity !== undefined 
+        ? product.hostel_stock_quantity 
+        : (product.stock_quantity || 0);
+      return stockQty <= 0;
+    });
+  }, [cartItems, products]);
+
   const addToCart = async (product) => {
     if (!user) {
       await base44.auth.redirectToLogin();
@@ -773,79 +785,81 @@ export default function Cart() {
       }
 
       // ⚡ STEP 1.5: VALIDATE STOCK BEFORE PROCEEDING
-      // This prevents orders for out-of-stock items
-      console.log('[Cart] Validating stock before checkout...');
-      
-      try {
-        // Direct fresh stock check from database - use hostel-specific stock
-        const productIds = cartItems.map(item => item.product_id);
-        const userHostel = selectedHostel || user.selected_hostel || 'Other';
+      // Skip stock validation if payment is already done (paymentId exists)
+      // We already validated stock before opening Razorpay
+      if (!paymentId) {
+        console.log('[Cart] Validating stock before checkout...');
         
-        // Get hostel ID first
-        let hostelId = null;
-        if (userHostel && userHostel !== 'Other') {
-          const { data: hostelData } = await supabase
-            .from('hostels')
-            .select('id')
-            .eq('name', userHostel)
-            .maybeSingle();
-          hostelId = hostelData?.id;
-        }
-        
-        // Fetch product info
-        const { data: freshStock, error: stockErr } = await supabase
-          .from('products')
-          .select('id, name, stock_quantity')
-          .in('id', productIds);
-
-        // Fetch hostel-specific stock if hostel is selected
-        let hostelStockMap = {};
-        if (hostelId) {
-          const { data: hostelStockData } = await supabase
-            .from('hostel_stock')
-            .select('product_id, stock_quantity')
-            .in('product_id', productIds)
-            .eq('hostel_id', hostelId);
+        try {
+          // Direct fresh stock check from database - use hostel-specific stock
+          const productIds = cartItems.map(item => item.product_id);
+          const userHostel = selectedHostel || user.selected_hostel || 'Other';
           
-          if (hostelStockData) {
-            hostelStockData.forEach(hs => {
-              hostelStockMap[hs.product_id] = hs.stock_quantity || 0;
-            });
+          // Get hostel ID first
+          let hostelId = null;
+          if (userHostel && userHostel !== 'Other') {
+            const { data: hostelData } = await supabase
+              .from('hostels')
+              .select('id')
+              .eq('name', userHostel)
+              .maybeSingle();
+            hostelId = hostelData?.id;
           }
-        }
+          
+          // Fetch product info
+          const { data: freshStock, error: stockErr } = await supabase
+            .from('products')
+            .select('id, name, stock_quantity')
+            .in('id', productIds);
 
-        if (!stockErr && freshStock) {
-          const outOfStockItems = [];
-          const overStockItems = [];
+          // Fetch hostel-specific stock if hostel is selected
+          let hostelStockMap = {};
+          if (hostelId) {
+            const { data: hostelStockData } = await supabase
+              .from('hostel_stock')
+              .select('product_id, stock_quantity')
+              .in('product_id', productIds)
+              .eq('hostel_id', hostelId);
+            
+            if (hostelStockData) {
+              hostelStockData.forEach(hs => {
+                hostelStockMap[hs.product_id] = hs.stock_quantity || 0;
+              });
+            }
+          }
 
-          cartItems.forEach(item => {
-            const prod = freshStock.find(p => p.id === item.product_id);
-            if (!prod) {
-              outOfStockItems.push(item.product_id);
+          if (!stockErr && freshStock) {
+            const outOfStockItems = [];
+            const overStockItems = [];
+
+            cartItems.forEach(item => {
+              const prod = freshStock.find(p => p.id === item.product_id);
+              if (!prod) {
+                outOfStockItems.push(item.product_id);
+                return;
+              }
+              
+              // Use hostel stock if available, otherwise total stock
+              const availableStock = hostelId && hostelStockMap[item.product_id] !== undefined
+                ? hostelStockMap[item.product_id]
+                : (prod.stock_quantity || 0);
+              
+              if (availableStock <= 0) {
+                outOfStockItems.push(prod.name);
+              } else if (item.quantity > availableStock) {
+                overStockItems.push({ name: prod.name, available: availableStock });
+              }
+            });
+
+            if (outOfStockItems.length > 0) {
+              toast.error(`Out of stock in ${userHostel}: ${outOfStockItems.join(', ')}. Please remove these items.`);
+              // Refresh products data
+              await loadCart(user.id);
               return;
             }
-            
-            // Use hostel stock if available, otherwise total stock
-            const availableStock = hostelId && hostelStockMap[item.product_id] !== undefined
-              ? hostelStockMap[item.product_id]
-              : (prod.stock_quantity || 0);
-            
-            if (availableStock <= 0) {
-              outOfStockItems.push(prod.name);
-            } else if (item.quantity > availableStock) {
-              overStockItems.push({ name: prod.name, available: availableStock });
-            }
-          });
 
-          if (outOfStockItems.length > 0) {
-            toast.error(`Out of stock in ${userHostel}: ${outOfStockItems.join(', ')}. Please remove these items.`);
-            // Refresh products data
-            await loadCart(user.id);
-            return;
-          }
-
-          if (overStockItems.length > 0) {
-            const msg = overStockItems.map(i => `${i.name} (only ${i.available} left)`).join(', ');
+            if (overStockItems.length > 0) {
+              const msg = overStockItems.map(i => `${i.name} (only ${i.available} left)`).join(', ');
             toast.error(`Insufficient stock: ${msg}. Please reduce quantity.`);
             await loadCart(user.id);
             return;
@@ -878,7 +892,10 @@ export default function Cart() {
         toast.error('Failed to validate cart. Please try again.');
         return;
       }
+      } // end if (!paymentId) stock validation
 
+      // Skip field validations if payment already completed (validated before Razorpay opened)
+      if (!paymentId) {
       // Validate required fields BEFORE any async operations
       if (!customerName.trim()) {
         setFieldErrors(prev => ({ ...prev, name: "Please enter your name" }));
@@ -1007,6 +1024,7 @@ export default function Cart() {
         toast.info("Please complete the payment using the button below.");
         return;
       }
+      } // end if (!paymentId) field validations
 
       // ⚡ STEP 2: SET LOADING STATE (after all validations pass)
       setIsPlacingOrder(true);
@@ -2027,7 +2045,7 @@ export default function Cart() {
                     placeOrder();
                   }
                 }}
-                disabled={isPlacingOrder || cartItems.length === 0 || calculateSubtotal() === 0 || rateLimitCountdown > 0}
+                disabled={isPlacingOrder || cartItems.length === 0 || calculateSubtotal() === 0 || rateLimitCountdown > 0 || hasOutOfStockItems()}
                 className="w-full h-9 sm:h-10 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold transition-all duration-200 active:scale-95"
               >
                 {isPlacingOrder ? (
@@ -2038,7 +2056,7 @@ export default function Cart() {
                     </svg>
                     Processing...
                   </span>
-                ) : paymentMethod === "razorpay" ? "Continue to Pay" : "Place Order"}
+                ) : hasOutOfStockItems() ? "Remove Out of Stock Items" : paymentMethod === "razorpay" ? "Continue to Pay" : "Place Order"}
               </Button>
               
               {/* Retry message display */}
