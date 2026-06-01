@@ -65,6 +65,17 @@ export default function Shop() {
   const [hasMore, setHasMore]     = useState(true);
   const observerTarget            = useRef(null);
   const PRODUCTS_PER_PAGE         = 12;
+  
+  // Ref to keep cartItems stable for getCartQuantity callback to prevent cascading re-renders
+  const cartItemsRef = useRef(cartItems);
+  useEffect(() => {
+    cartItemsRef.current = cartItems;
+  }, [cartItems]);
+
+  const getCartQuantity = useCallback(productId => {
+    const item = cartItemsRef.current.find(i => i.product_id === productId);
+    return item ? item.quantity : 0;
+  }, []);
 
   // ── Debounced cart write refs ─────────────────────────────────────────
   // pendingCart: { [productId]: { quantity, timer, existingItemId } }
@@ -204,21 +215,74 @@ export default function Shop() {
           // In-stock items first, out-of-stock at end
           const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
           const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
-          if (aS > 0 && bS === 0) return -1;
-          if (aS === 0 && bS > 0) return 1;
+          
+          const aQty = getCartQuantity(a.id);
+          const bQty = getCartQuantity(b.id);
+          
+          const aInStock = aS > 0 || aQty > 0;
+          const bInStock = bS > 0 || bQty > 0;
+          
+          if (aInStock && !bInStock) return -1;
+          if (!aInStock && bInStock) return 1;
           return (a.display_order || 0) - (b.display_order || 0);
         });
     });
     setCategorizedProducts(categorized);
-  }, [products, categories]);
+  }, [products, categories, getCartQuantity]);
+
+  // ── Filters + sort ────────────────────────────────────────────────────
+  const applyFiltersAndSort = useCallback((list) => {
+    let out = [...list];
+
+    if (searchQuery.trim()) {
+      const terms = searchQuery.toLowerCase().split(" ");
+      out = out.filter(p => {
+        const text = `${p.name} ${p.description || ""}`.toLowerCase();
+        return terms.some(t => text.includes(t));
+      });
+    }
+    if (selectedCategory) out = out.filter(p => p.category_id === selectedCategory);
+    out = out.filter(p => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]);
+
+    if (filters.rating !== "all") {
+      const min = parseFloat(filters.rating);
+      out = out.filter(p => (p.average_rating || 0) >= min);
+    }
+
+    // Sort: in-stock first, then out-of-stock
+    out.sort((a, b) => {
+      const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
+      const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
+      if (aS > 0 && bS === 0) return -1;
+      if (aS === 0 && bS > 0) return 1;
+      return 0;
+    });
+
+    switch (sortBy) {
+      case "price_low":  out.sort((a, b) => a.price - b.price); break;
+      case "price_high": out.sort((a, b) => b.price - a.price); break;
+      case "rating":     out.sort((a, b) => (b.average_rating || 0) - (a.average_rating || 0)); break;
+      default: break;
+    }
+    return out;
+  }, [searchQuery, selectedCategory, filters, sortBy, user]);
+
+  const filteredProducts = useMemo(
+    () => applyFiltersAndSort(products),
+    [products, applyFiltersAndSort]
+  );
 
   // ── Infinite scroll slice ─────────────────────────────────────────────
   useEffect(() => {
-    const filtered = applyFiltersAndSort(products);
-    setDisplayedProducts(filtered.slice(0, PRODUCTS_PER_PAGE));
     setPage(1);
-    setHasMore(filtered.length > PRODUCTS_PER_PAGE);
-  }, [products, searchQuery, selectedCategory, filters, sortBy]);
+  }, [searchQuery, selectedCategory, filters, sortBy]);
+
+  useEffect(() => {
+    const filtered = applyFiltersAndSort(products);
+    const currentEnd = Math.max(page * PRODUCTS_PER_PAGE, PRODUCTS_PER_PAGE);
+    setDisplayedProducts(filtered.slice(0, currentEnd));
+    setHasMore(filtered.length > currentEnd);
+  }, [products, applyFiltersAndSort, page]);
 
   // ── IntersectionObserver ──────────────────────────────────────────────
   useEffect(() => {
@@ -445,69 +509,37 @@ export default function Shop() {
   const flushCartWrite = useCallback(async (productId, targetQty, existingItemId) => {
     delete pendingCart.current[productId];
     
-    // Check if existingItemId is a temporary ID
-    const isTempId = existingItemId?.toString().startsWith("temp-");
-    
     try {
       if (targetQty <= 0) {
-        // Deleting item
-        if (existingItemId && !isTempId) {
-          // Only delete if it's a real ID (not temporary)
-          await CartItem.delete(existingItemId);
-        } else {
-          // If it's a temp ID, just fetch existing items and delete if found
-          const existingItems = await CartItem.filter({
-            product_id: productId,
-            user_id: user.id
-          }).catch(() => []);
-          
-          if (existingItems && existingItems.length > 0) {
-            await CartItem.delete(existingItems[0].id);
-          }
-        }
-        notifyCartUpdate();
-      } else if (existingItemId && !isTempId) {
-        // Updating existing item with real ID
-        await CartItem.update(existingItemId, { quantity: targetQty });
+        // Deleting item - match by user & product to avoid stale ID race conditions
+        const { error: deleteErr } = await supabase
+          .from('cart_items')
+          .delete()
+          .eq('product_id', productId)
+          .eq('user_id', user.id);
+
+        if (deleteErr) throw deleteErr;
         notifyCartUpdate();
       } else {
-        // Creating new item or updating item with temp ID
-        // Use upsert to handle race conditions (prevents 409 duplicate key)
-        const existingItems = await CartItem.filter({
-          product_id: productId,
-          user_id: user.id
-        }).catch(() => []);
-        
-        if (existingItems && existingItems.length > 0) {
-          // Item already exists, update it
-          await CartItem.update(existingItems[0].id, { quantity: targetQty });
-          // Update local state with real id
+        // Always upsert to prevent any stale ID or 406 Not Acceptable errors!
+        const { data: created, error: upsertErr } = await supabase
+          .from('cart_items')
+          .upsert(
+            { product_id: productId, user_id: user.id, quantity: targetQty },
+            { onConflict: 'user_id,product_id' }
+          )
+          .select()
+          .maybeSingle();
+
+        if (upsertErr) throw upsertErr;
+
+        if (created) {
+          // Update local state with real ID returned by upsert
           setCartItems(prev => prev.map(item =>
             item.product_id === productId
-              ? { ...item, id: existingItems[0].id, quantity: targetQty }
+              ? { ...item, id: created.id, quantity: targetQty }
               : item
           ));
-        } else {
-          // Create new item - use upsert to prevent duplicate key error
-          const { data: created, error: createErr } = await supabase
-            .from('cart_items')
-            .upsert(
-              { product_id: productId, user_id: user.id, quantity: targetQty },
-              { onConflict: 'user_id,product_id' }
-            )
-            .select()
-            .single();
-          
-          if (createErr) throw createErr;
-          
-          // Replace temp id with real id
-          if (created) {
-            setCartItems(prev => prev.map(item =>
-              item.product_id === productId && item.id?.toString().startsWith("temp-")
-                ? { ...item, id: created.id }
-                : item
-            ));
-          }
         }
         notifyCartUpdate();
       }
@@ -615,61 +647,6 @@ export default function Shop() {
   }, [user, cartItems, getHostelStock, isProductInStock, checkRateLimit, flushCartWrite, navigate]);
 
   const addToCart = useCallback(product => updateCartQuantity(product, 1), [updateCartQuantity]);
-
-  // Memoized cart quantity lookup - prevents repeated array searches
-  const cartQuantityMap = useMemo(() => {
-    const map = new Map();
-    cartItems.forEach(item => {
-      map.set(item.product_id, item.quantity);
-    });
-    return map;
-  }, [cartItems]);
-
-  const getCartQuantity = useCallback(productId => {
-    return cartQuantityMap.get(productId) ?? 0;
-  }, [cartQuantityMap]);
-
-  // ── Filters + sort ────────────────────────────────────────────────────
-  const applyFiltersAndSort = useCallback((list) => {
-    let out = [...list];
-
-    if (searchQuery.trim()) {
-      const terms = searchQuery.toLowerCase().split(" ");
-      out = out.filter(p => {
-        const text = `${p.name} ${p.description || ""}`.toLowerCase();
-        return terms.some(t => text.includes(t));
-      });
-    }
-    if (selectedCategory) out = out.filter(p => p.category_id === selectedCategory);
-    out = out.filter(p => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1]);
-
-    if (filters.rating !== "all") {
-      const min = parseFloat(filters.rating);
-      out = out.filter(p => (p.average_rating || 0) >= min);
-    }
-
-    // Sort: in-stock first, then out-of-stock
-    out.sort((a, b) => {
-      const aS = a.hostel_stock_quantity !== undefined ? a.hostel_stock_quantity : (a.stock_quantity || 0);
-      const bS = b.hostel_stock_quantity !== undefined ? b.hostel_stock_quantity : (b.stock_quantity || 0);
-      if (aS > 0 && bS === 0) return -1;
-      if (aS === 0 && bS > 0) return 1;
-      return 0;
-    });
-
-    switch (sortBy) {
-      case "price_low":  out.sort((a, b) => a.price - b.price); break;
-      case "price_high": out.sort((a, b) => b.price - a.price); break;
-      case "rating":     out.sort((a, b) => (b.average_rating || 0) - (a.average_rating || 0)); break;
-      default: break;
-    }
-    return out;
-  }, [searchQuery, selectedCategory, filters, sortBy, user]);
-
-  const filteredProducts = useMemo(
-    () => applyFiltersAndSort(products),
-    [products, applyFiltersAndSort]
-  );
 
   // ── Render ────────────────────────────────────────────────────────────
   const isFiltered = searchQuery.trim() || selectedCategory ||

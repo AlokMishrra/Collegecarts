@@ -531,8 +531,8 @@ export default function Meals() {
 
       {/* ===== DELIVERY SLOT PICKER MODAL ===== */}
       {showSlotPicker && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={() => setShowSlotPicker(false)}>
-          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/50" onClick={() => setShowSlotPicker(false)}>
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 pb-8 sm:pb-5 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">Choose Delivery Time</h3>
               <button onClick={() => setShowSlotPicker(false)} className="p-1 rounded-full hover:bg-gray-100">
@@ -594,8 +594,8 @@ export default function Meals() {
 
       {/* ===== MEAL CALENDAR MODAL ===== */}
       {showCalendar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCalendar(false)}>
-          <div className="bg-white w-full max-w-lg mx-4 rounded-2xl p-5 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50" onClick={() => setShowCalendar(false)}>
+          <div className="bg-white w-full max-w-lg mx-4 rounded-2xl p-5 pb-8 sm:pb-5 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">
                 <Calendar className="w-5 h-5 inline mr-2 text-blue-600" />
@@ -671,8 +671,8 @@ export default function Meals() {
 
       {/* ===== CUSTOMIZE MEAL MODAL ===== */}
       {showCustomize && customizeItem && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={() => setShowCustomize(false)}>
-          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/50" onClick={() => setShowCustomize(false)}>
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 pb-8 sm:pb-5 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">Customize Your Meal</h3>
               <button onClick={() => setShowCustomize(false)} className="p-1 rounded-full hover:bg-gray-100">

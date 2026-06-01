@@ -42,12 +42,12 @@ const CategorySection = memo(function CategorySection({
     return product.stock_quantity || 0;
   });
 
-  // Reset scroll position to show in-stock items first
+  // Reset scroll position to show in-stock items first when category changes
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft = 0;
     }
-  }, [products]);
+  }, [category.id]);
   
   if (!products || products.length === 0) {
     return (
@@ -63,8 +63,10 @@ const CategorySection = memo(function CategorySection({
   }
 
   const sortedProducts = [...products].sort((a, b) => {
-    const aInStock = checkProductInStock(a);
-    const bInStock = checkProductInStock(b);
+    const aQty = getCartQuantity(a.id);
+    const bQty = getCartQuantity(b.id);
+    const aInStock = checkProductInStock(a) || aQty > 0;
+    const bInStock = checkProductInStock(b) || bQty > 0;
     
     if (aInStock && !bInStock) return -1;
     if (!aInStock && bInStock) return 1;
@@ -94,7 +96,7 @@ const CategorySection = memo(function CategorySection({
             const hasDiscount = product.original_price && product.original_price > product.price;
             const hostelStock = getStock(product);
             const inStock = checkProductInStock(product);
-            const isOutOfStock = !inStock;
+            const isOutOfStock = !inStock && cartQty === 0;
             const isMaxStock = cartQty >= hostelStock; // Check if max stock reached
             
             return (

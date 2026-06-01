@@ -113,7 +113,7 @@ export default function ProductDetails() {
     }
     const hostelStock = getHostelStock(product);
     console.log('[isProductInStock] Hostel stock:', hostelStock, 'In stock:', hostelStock > 0);
-    return hostelStock > 0;
+    return hostelStock > 0 || cartQuantity > 0;
   };
 
   const checkUser = async () => {

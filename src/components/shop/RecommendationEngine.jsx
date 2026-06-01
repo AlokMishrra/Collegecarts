@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles, Loader2 } from "lucide-react";
+import { enrichProductsWithHostelStock } from "@/utils/hostelStockHelper";
 import ProductCard from "./ProductCard";
 
 export default function RecommendationEngine({ user, onAddToCart, getCartQuantity, onUpdateQuantity, context = "shop" }) {
@@ -55,7 +56,19 @@ export default function RecommendationEngine({ user, onAddToCart, getCartQuantit
     try {
       const orders = config?.use_purchase_history ? await base44.entities.Order.filter({ user_id: user.id }) : [];
       const viewedProducts = config?.use_browsing_behavior ? JSON.parse(localStorage.getItem(`viewed_products_${user.id}`) || "[]") : [];
-      const allProducts = await base44.entities.Product.filter({ is_available: true });
+      let allProducts = await base44.entities.Product.filter({ is_available: true });
+      
+      // Enrich with hostel stock if user is logged in
+      if (user?.selected_hostel) {
+        allProducts = await enrichProductsWithHostelStock(allProducts, user.selected_hostel);
+      } else {
+        allProducts = allProducts.map(p => ({
+          ...p,
+          hostel_stock_quantity: p.stock_quantity || 0
+        }));
+      }
+      // Only keep in-stock and available items
+      allProducts = allProducts.filter(p => (p.hostel_stock_quantity || 0) > 0);
       
       // Build user context
       const purchasedProducts = [];
@@ -117,12 +130,32 @@ Return ONLY a JSON array of product names: ["Product Name 1", "Product Name 2", 
       });
 
       const recommendedNames = aiResponse.recommendations || [];
-      const recommendedProducts = recommendedNames
+      let recommendedProducts = recommendedNames
         .map(name => allProducts.find(p => p.name === name))
-        .filter(Boolean)
-        .slice(0, context === "checkout" ? 4 : (config?.max_recommendations || 8));
+        .filter(Boolean);
 
-      setRecommendations(recommendedProducts);
+      const limit = context === "checkout" ? 4 : (config?.max_recommendations || 8);
+
+      // Backfill with high-margin/relevant items if we don't have enough recommendations
+      if (recommendedProducts.length < limit) {
+        const existingIds = new Set(recommendedProducts.map(p => p.id));
+        
+        const backfillItems = allProducts
+          .filter(p => !existingIds.has(p.id))
+          .map(product => {
+            let score = Number(product.profit_margin || 0);
+            if (categoryFrequency[product.category_id]) score += 50;
+            if (viewedProducts.includes(product.id)) score += 20;
+            if (product.rating >= 4) score += 15;
+            return { ...product, score };
+          })
+          .sort((a, b) => b.score - a.score);
+
+        const needed = limit - recommendedProducts.length;
+        recommendedProducts = [...recommendedProducts, ...backfillItems.slice(0, needed)];
+      }
+
+      setRecommendations(recommendedProducts.slice(0, limit));
     } catch (error) {
       console.error("AI recommendation failed, falling back to basic:", error);
       await loadBasicRecommendations(config);
@@ -133,7 +166,19 @@ Return ONLY a JSON array of product names: ["Product Name 1", "Product Name 2", 
     try {
       const orders = config?.use_purchase_history ? await base44.entities.Order.filter({ user_id: user.id }) : [];
       const viewedProducts = config?.use_browsing_behavior ? JSON.parse(localStorage.getItem(`viewed_products_${user.id}`) || "[]") : [];
-      const allProducts = await base44.entities.Product.filter({ is_available: true });
+      let allProducts = await base44.entities.Product.filter({ is_available: true });
+      
+      // Enrich with hostel stock if user is logged in
+      if (user?.selected_hostel) {
+        allProducts = await enrichProductsWithHostelStock(allProducts, user.selected_hostel);
+      } else {
+        allProducts = allProducts.map(p => ({
+          ...p,
+          hostel_stock_quantity: p.stock_quantity || 0
+        }));
+      }
+      // Only keep in-stock and available items
+      allProducts = allProducts.filter(p => (p.hostel_stock_quantity || 0) > 0);
       
       const purchasedProductIds = new Set();
       const categoryFrequency = {};
@@ -154,25 +199,40 @@ Return ONLY a JSON array of product names: ["Product Name 1", "Product Name 2", 
         .map(([categoryId]) => categoryId);
 
       const scoredProducts = allProducts.map(product => {
-        let score = 0;
+        // Base score is profit margin (higher margin is suggested first for new users)
+        let score = Number(product.profit_margin || 0);
         
-        if (purchasedProductIds.has(product.id)) score -= 100;
-        if (topCategories.includes(product.category_id)) score += 30;
+        // Boost based on purchases and browsing history
+        if (topCategories.includes(product.category_id)) {
+          score += 50;
+        }
         
         const viewIndex = viewedProducts.indexOf(product.id);
-        if (viewIndex !== -1) score += 20 - viewIndex;
+        if (viewIndex !== -1) {
+          score += 30 - viewIndex;
+        }
         
-        if (product.rating >= 4) score += 15;
-        if (config?.boost_high_margin && product.profit_margin > 20) score += 10;
-        if (product.original_price && product.original_price > product.price) score += 8;
+        if (product.rating >= 4) {
+          score += 15;
+        }
+        
+        if (product.original_price && product.original_price > product.price) {
+          score += 10;
+        }
+
+        // Slightly deprioritize already purchased items to encourage discovery, but keep them available
+        if (purchasedProductIds.has(product.id)) {
+          score -= 10;
+        }
 
         return { ...product, score };
       });
 
+      // Sort by score descending and take top N
+      const limit = context === "checkout" ? 4 : (config?.max_recommendations || 8);
       const topRecommendations = scoredProducts
         .sort((a, b) => b.score - a.score)
-        .filter(p => p.score > 0)
-        .slice(0, context === "checkout" ? 4 : (config?.max_recommendations || 8));
+        .slice(0, limit);
 
       setRecommendations(topRecommendations);
     } catch (error) {
@@ -214,7 +274,7 @@ Return ONLY a JSON array of product names: ["Product Name 1", "Product Name 2", 
             <div className="flex gap-3 overflow-x-auto pb-4 px-2 scrollbar-hide snap-x snap-mandatory items-start">
               {recommendations.map((product, index) => {
                 const cartQuantity = getCartQuantity ? getCartQuantity(product.id) : 0;
-                const isInStock = product.stock_quantity > 0;
+                const isInStock = (product.hostel_stock_quantity !== undefined ? product.hostel_stock_quantity : product.stock_quantity) > 0 || cartQuantity > 0;
                 
                 return (
                   <div key={product.id} className="flex-shrink-0 w-[140px] snap-start">

@@ -107,7 +107,7 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
     ? Math.round(((product.original_price - displayPrice) / product.original_price) * 100)
     : 0;
 
-  const isOutOfStock = isInStock !== undefined ? !isInStock : hostelStock === 0;
+  const isOutOfStock = (isInStock !== undefined ? !isInStock : hostelStock === 0) && cartQuantity === 0;
 
   return (
     <Card className="group overflow-hidden hover:shadow-2xl transition-all duration-300 border-0 bg-white rounded-2xl h-full flex flex-col">

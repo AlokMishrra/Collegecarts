@@ -77,7 +77,7 @@ export default function CategoryProducts() {
         if (from !== null && to !== null && !(cur >= from && cur <= to)) return false;
       } catch { /* ignore */ }
     }
-    return getHostelStock(product) > 0;
+    return getHostelStock(product) > 0 || getCartQuantity(product.id) > 0;
   };
 
   // ── Data ─────────────────────────────────────────────────────────────────
