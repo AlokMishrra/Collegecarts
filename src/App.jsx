@@ -21,38 +21,40 @@ import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import OfflineBanner from '@/components/shared/OfflineBanner';
 import AdminErrorPanel from '@/components/admin/AdminErrorPanel';
+import { lazyWithRetry } from '@/utils/lazyWithRetry';
+import RouteErrorBoundary from '@/components/RouteErrorBoundary';
 
-// Employee System - Lazy loaded (not needed on initial page load)
-const EmployeeLogin = lazy(() => import('@/pages/employee/EmployeeLogin'));
-const EmployeePasswordReset = lazy(() => import('@/pages/employee/EmployeePasswordReset'));
-const EmployeeLayout = lazy(() => import('@/pages/employee/EmployeeLayout'));
-const EmployeeDashboard = lazy(() => import('@/pages/employee/EmployeeDashboard'));
-const EmployeeProfile = lazy(() => import('@/pages/employee/EmployeeProfile'));
-const EmployeeSettings = lazy(() => import('@/pages/employee/EmployeeSettings'));
-const EmployeeAttendance = lazy(() => import('@/pages/employee/EmployeeAttendance'));
-const EmployeeSalary = lazy(() => import('@/pages/employee/EmployeeSalary'));
-const CreateStockOrder = lazy(() => import('@/pages/employee/CreateStockOrder'));
-const StockOrdersList = lazy(() => import('@/pages/employee/StockOrdersList'));
-const StockOrderDetails = lazy(() => import('@/pages/employee/StockOrderDetails'));
-const StockManager = lazy(() => import('@/pages/employee/StockManager'));
-const ManageEmployees = lazy(() => import('@/pages/employee/ManageEmployees'));
-const ManageDepartments = lazy(() => import('@/pages/employee/ManageDepartments'));
-const Deliveries = lazy(() => import('@/pages/employee/Deliveries'));
-const Finance = lazy(() => import('@/pages/employee/Finance'));
-const EmployeeAnalytics = lazy(() => import('@/pages/employee/Analytics'));
-const Support = lazy(() => import('@/pages/employee/Support'));
-const Inventory = lazy(() => import('@/pages/employee/Inventory'));
-const PayoutManagement = lazy(() => import('@/pages/employee/PayoutManagement'));
+// Employee System - Lazy loaded with retry capability
+const EmployeeLogin = lazyWithRetry(() => import('@/pages/employee/EmployeeLogin'));
+const EmployeePasswordReset = lazyWithRetry(() => import('@/pages/employee/EmployeePasswordReset'));
+const EmployeeLayout = lazyWithRetry(() => import('@/pages/employee/EmployeeLayout'));
+const EmployeeDashboard = lazyWithRetry(() => import('@/pages/employee/EmployeeDashboard'));
+const EmployeeProfile = lazyWithRetry(() => import('@/pages/employee/EmployeeProfile'));
+const EmployeeSettings = lazyWithRetry(() => import('@/pages/employee/EmployeeSettings'));
+const EmployeeAttendance = lazyWithRetry(() => import('@/pages/employee/EmployeeAttendance'));
+const EmployeeSalary = lazyWithRetry(() => import('@/pages/employee/EmployeeSalary'));
+const CreateStockOrder = lazyWithRetry(() => import('@/pages/employee/CreateStockOrder'));
+const StockOrdersList = lazyWithRetry(() => import('@/pages/employee/StockOrdersList'));
+const StockOrderDetails = lazyWithRetry(() => import('@/pages/employee/StockOrderDetails'));
+const StockManager = lazyWithRetry(() => import('@/pages/employee/StockManager'));
+const ManageEmployees = lazyWithRetry(() => import('@/pages/employee/ManageEmployees'));
+const ManageDepartments = lazyWithRetry(() => import('@/pages/employee/ManageDepartments'));
+const Deliveries = lazyWithRetry(() => import('@/pages/employee/Deliveries'));
+const Finance = lazyWithRetry(() => import('@/pages/employee/Finance'));
+const EmployeeAnalytics = lazyWithRetry(() => import('@/pages/employee/Analytics'));
+const Support = lazyWithRetry(() => import('@/pages/employee/Support'));
+const Inventory = lazyWithRetry(() => import('@/pages/employee/Inventory'));
+const PayoutManagement = lazyWithRetry(() => import('@/pages/employee/PayoutManagement'));
 import EmployeeAuthGuard from '@/components/EmployeeAuthGuard';
 
-// Lazy load heavy pages for better performance
-const Referral = lazy(() => import('./pages/Referral'));
-const CCA = lazy(() => import('./pages/CCA'));
-const Cart = lazy(() => import('./pages/Cart'));
-const UserManagement = lazy(() => import('./pages/UserManagement'));
-const Delivery = lazy(() => import('./pages/Delivery'));
-const Subscription = lazy(() => import('./pages/Subscription'));
-const Wishlist = lazy(() => import('./pages/Wishlist'));
+// Lazy load heavy pages with self-healing retry logic
+const Referral = lazyWithRetry(() => import('./pages/Referral'));
+const CCA = lazyWithRetry(() => import('./pages/CCA'));
+const Cart = lazyWithRetry(() => import('./pages/Cart'));
+const UserManagement = lazyWithRetry(() => import('./pages/UserManagement'));
+const Delivery = lazyWithRetry(() => import('./pages/Delivery'));
+const Subscription = lazyWithRetry(() => import('./pages/Subscription'));
+const Wishlist = lazyWithRetry(() => import('./pages/Wishlist'));
 
 // Policy & info pages (lightweight, no lazy needed)
 import ContactUs from './pages/ContactUs';
@@ -65,16 +67,43 @@ import Meals from './pages/Meals';
 import { NavigationProvider } from '@/navigation/NavigationProvider';
 import { ModuleLayout } from '@/navigation';
 
-// Loading skeleton component
+// Premium Loading skeleton component mimicking dynamic page layout elements
 const PageLoadingSkeleton = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+  <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6 animate-pulse">
+    {/* Banner/Header skeleton */}
+    <div className="h-40 bg-gray-100 rounded-2xl w-full"></div>
+    {/* Category buttons skeleton */}
+    <div className="grid grid-cols-4 gap-4">
+      <div className="h-10 bg-gray-100 rounded-xl"></div>
+      <div className="h-10 bg-gray-100 rounded-xl"></div>
+      <div className="h-10 bg-gray-100 rounded-xl"></div>
+      <div className="h-10 bg-gray-100 rounded-xl"></div>
+    </div>
+    {/* Content mock rows */}
+    <div className="space-y-4">
+      <div className="h-6 bg-gray-100 rounded-md w-1/4"></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="h-64 bg-gray-100 rounded-xl"></div>
+        <div className="h-64 bg-gray-100 rounded-xl"></div>
+        <div className="h-64 bg-gray-100 rounded-xl"></div>
+        <div className="h-64 bg-gray-100 rounded-xl"></div>
+      </div>
+    </div>
   </div>
 );
 
 const { Pages, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+
+// Mapping of lazy pages to automatically override static imports
+const LAZY_PAGES = {
+  Cart,
+  UserManagement,
+  Delivery,
+  Subscription,
+  Wishlist,
+};
 
 const LayoutWrapper = ({ children }) => (
   <ModuleLayout>{children}</ModuleLayout>
@@ -129,7 +158,11 @@ const AuthenticatedApp = () => {
       {/* ── Meals Module ── */}
       <Route path="/meals" element={
         <RequireAuth>
-          <LayoutWrapper><Meals /></LayoutWrapper>
+          <LayoutWrapper>
+            <RouteErrorBoundary>
+              <Meals />
+            </RouteErrorBoundary>
+          </LayoutWrapper>
         </RequireAuth>
       } />
 
@@ -137,14 +170,16 @@ const AuthenticatedApp = () => {
       <Route path="/" element={
         <RequireAuth>
           <LayoutWrapper >
-            <MainPage />
+            <RouteErrorBoundary>
+              <MainPage />
+            </RouteErrorBoundary>
           </LayoutWrapper>
         </RequireAuth>
       } />
 
       {/* ── All app pages — require login ── */}
       {Object.entries(Pages).map(([path, Page]) => {
-        const isLazyPage = ['Cart', 'UserManagement', 'Delivery', 'Subscription', 'Wishlist'].includes(path);
+        const LazyComponent = LAZY_PAGES[path];
         return (
           <Route
             key={path}
@@ -152,13 +187,15 @@ const AuthenticatedApp = () => {
             element={
               <RequireAuth>
                 <LayoutWrapper >
-                  {isLazyPage ? (
-                    <Suspense fallback={<PageLoadingSkeleton />}>
+                  <RouteErrorBoundary>
+                    {LazyComponent ? (
+                      <Suspense fallback={<PageLoadingSkeleton />}>
+                        <LazyComponent />
+                      </Suspense>
+                    ) : (
                       <Page />
-                    </Suspense>
-                  ) : (
-                    <Page />
-                  )}
+                    )}
+                  </RouteErrorBoundary>
                 </LayoutWrapper>
               </RequireAuth>
             }
@@ -170,9 +207,11 @@ const AuthenticatedApp = () => {
       <Route path="/Referral" element={
         <RequireAuth>
           <LayoutWrapper currentPageName="Referral">
-            <Suspense fallback={<PageLoadingSkeleton />}>
-              <Referral />
-            </Suspense>
+            <RouteErrorBoundary>
+              <Suspense fallback={<PageLoadingSkeleton />}>
+                <Referral />
+              </Suspense>
+            </RouteErrorBoundary>
           </LayoutWrapper>
         </RequireAuth>
       } />
@@ -181,31 +220,57 @@ const AuthenticatedApp = () => {
       <Route path="/CCA" element={
         <ProtectedRoute requiredRole="admin">
           <LayoutWrapper currentPageName="CCA">
-            <Suspense fallback={<PageLoadingSkeleton />}>
-              <CCA />
-            </Suspense>
+            <RouteErrorBoundary>
+              <Suspense fallback={<PageLoadingSkeleton />}>
+                <CCA />
+              </Suspense>
+            </RouteErrorBoundary>
           </LayoutWrapper>
         </ProtectedRoute>
       } />
       <Route path="/admin/errors" element={
         <ProtectedRoute requiredRole="admin">
           <LayoutWrapper currentPageName="AdminErrors">
-            <Suspense fallback={<PageLoadingSkeleton />}>
-              <AdminErrorPanel />
-            </Suspense>
+            <RouteErrorBoundary>
+              <Suspense fallback={<PageLoadingSkeleton />}>
+                <AdminErrorPanel />
+              </Suspense>
+            </RouteErrorBoundary>
           </LayoutWrapper>
         </ProtectedRoute>
       } />
 
       {/* ── Employee System Routes ── */}
-      <Route path="/employee/login" element={<EmployeeLogin />} />
-      <Route path="/employee/reset-password" element={<EmployeePasswordReset />} />
-      <Route path="/employee/forgot-password" element={<EmployeePasswordReset />} />
+      <Route path="/employee/login" element={
+        <RouteErrorBoundary>
+          <Suspense fallback={<PageLoadingSkeleton />}>
+            <EmployeeLogin />
+          </Suspense>
+        </RouteErrorBoundary>
+      } />
+      <Route path="/employee/reset-password" element={
+        <RouteErrorBoundary>
+          <Suspense fallback={<PageLoadingSkeleton />}>
+            <EmployeePasswordReset />
+          </Suspense>
+        </RouteErrorBoundary>
+      } />
+      <Route path="/employee/forgot-password" element={
+        <RouteErrorBoundary>
+          <Suspense fallback={<PageLoadingSkeleton />}>
+            <EmployeePasswordReset />
+          </Suspense>
+        </RouteErrorBoundary>
+      } />
       <Route 
         path="/employee/:employeeSlug" 
         element={
           <EmployeeAuthGuard>
-            <EmployeeLayout />
+            <RouteErrorBoundary>
+              <Suspense fallback={<PageLoadingSkeleton />}>
+                <EmployeeLayout />
+              </Suspense>
+            </RouteErrorBoundary>
           </EmployeeAuthGuard>
         }
       >

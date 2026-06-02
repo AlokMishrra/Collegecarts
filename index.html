@@ -18,6 +18,47 @@
         y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
       })(window, document, "clarity", "script", "wueb0yy372");
     </script>
+    
+    <!-- Dynamic asset failure listeners -->
+    <script>
+      // Catch style resource loading failures and reload them
+      window.addEventListener('error', function(e) {
+        var target = e.target;
+        if (target && target.tagName === 'LINK' && target.rel === 'stylesheet') {
+          console.error('Stylesheet load failed:', target.href);
+          if (!target.href.includes('cc_retry=')) {
+            var separator = target.href.includes('?') ? '&' : '?';
+            target.href = target.href + separator + 'cc_retry=' + Date.now();
+          }
+        }
+      }, true); // Capture phase required as resource events do not bubble
+
+      // Intercept dynamic chunk loading issues and force page reload to capture latest build
+      window.addEventListener('unhandledrejection', function(e) {
+        var reason = e.reason || {};
+        var msg = reason.message || '';
+        var name = reason.name || '';
+        if (
+          msg.includes('Failed to fetch dynamically imported module') ||
+          msg.includes('ChunkLoadError') ||
+          msg.includes('Loading chunk') ||
+          name === 'ChunkLoadError'
+        ) {
+          console.warn('Unhandled dynamic chunk rejection. Reloading page...', e.reason);
+          e.preventDefault();
+          
+          var reloadKey = 'cc_chunk_reload_count';
+          var count = parseInt(sessionStorage.getItem(reloadKey) || '0', 10);
+          if (count < 2) {
+            sessionStorage.setItem(reloadKey, String(count + 1));
+            window.location.reload(true);
+          } else {
+            console.error('Max auto-reloads hit. Rendering fallback UI.');
+            sessionStorage.removeItem(reloadKey);
+          }
+        }
+      });
+    </script>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- COMPLETE SEO IMPLEMENTATION FOR COLLEGECART SHOP -->
@@ -304,6 +345,42 @@
     <div id="root">
       <div class="app-loading"><div class="app-loading-spinner"></div></div>
     </div>
+    
+    <!-- Beautiful emergency fallback banner (hidden by default, displayed if Tailwind fails) -->
+    <div id="css-failure-banner" style="display:none; position:fixed; inset:0; z-index:999999; background:#ffffff; color:#374151; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; flex-direction:column; align-items:center; justify-content:center; padding:2rem; text-align:center; box-sizing:border-box;">
+      <div style="width:64px; height:64px; background:#ecfdf5; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:1.5rem;">
+        <svg style="width:32px; height:32px; color:#059669;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+      </div>
+      <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:0.5rem; color:#111827; margin-top:0;">Optimizing App Resources</h1>
+      <p style="font-size:1rem; margin-bottom:2rem; max-w:400px; color:#6b7280; line-height:1.5; margin-top:0;">We are verifying connection and updating CollegeCart styles for your device. Tap below to reload.</p>
+      <button onclick="window.location.reload(true)" style="background:#059669; color:#ffffff; border:none; padding:0.75rem 1.75rem; font-size:1rem; font-weight:600; border-radius:0.5rem; cursor:pointer; box-shadow:0 4px 6px -1px rgba(5,150,105,0.2); transition:all 0.2s;">Reload System</button>
+    </div>
+
+    <!-- CSS Loading Verification Verification Script -->
+    <script>
+      setTimeout(function() {
+        var test = document.createElement('div');
+        test.className = 'hidden';
+        test.style.position = 'absolute';
+        test.style.left = '-9999px';
+        document.body.appendChild(test);
+        
+        var style = window.getComputedStyle(test);
+        var cssLoaded = style.display === 'none';
+        document.body.removeChild(test);
+        
+        if (!cssLoaded) {
+          console.error('Tailwind stylesheet loading failed or inactive.');
+          var banner = document.getElementById('css-failure-banner');
+          if (banner) {
+            banner.style.display = 'flex';
+          }
+        } else {
+          console.log('CSS stylesheet validated successfully.');
+        }
+      }, 2500);
+    </script>
+    
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
