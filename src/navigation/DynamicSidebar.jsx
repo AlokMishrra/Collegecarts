@@ -28,7 +28,7 @@ export default function DynamicSidebar({ onLogout }) {
     
     // Add role-based section if user has admin or delivery role
     const isAdmin = user?.role === 'admin';
-    const isDelivery = !!localStorage.getItem('deliveryPerson');
+    const isDelivery = user?.role === 'delivery' || !!localStorage.getItem('deliveryPerson');
     
     if (isAdmin || isDelivery) {
       const roleItems = [];
