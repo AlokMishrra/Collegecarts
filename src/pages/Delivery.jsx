@@ -562,11 +562,14 @@ export default function Delivery() {
           wallet_balance: newWalletBalance,
           current_orders: (freshPerson.current_orders || []).filter(id => id !== order.id)
         }),
+        // Single commission transaction — no duplicate for COD orders
         base44.entities.WalletTransaction.create({
           delivery_person_id: deliveryPerson.id,
           amount: commission,
           type: "delivery_earning",
-          description: `Commission for order #${order.order_number}`
+          description: isCODPending
+            ? `10% commission (₹${commission}) for COD order #${order.order_number}`
+            : `Commission for order #${order.order_number}`
         }),
         base44.entities.Notification.create({
           user_id: order.user_id,
@@ -575,17 +578,6 @@ export default function Delivery() {
           type: "success"
         })
       ];
-
-      if (isCODPending) {
-        ops.push(
-          base44.entities.WalletTransaction.create({
-            delivery_person_id: deliveryPerson.id,
-            amount: commission,
-            type: "delivery_earning",
-            description: `10% commission (₹${commission}) for COD order #${order.order_number}`
-          })
-        );
-      }
 
       await Promise.all(ops).catch(err => console.error('markOrderDelivered DB error:', err));
     };
