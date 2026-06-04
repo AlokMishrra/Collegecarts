@@ -683,6 +683,35 @@ export default function Cart() {
       return;
     }
 
+    // ⚡ Check delivery partner availability BEFORE opening payment
+    try {
+      const hostelToCheck = selectedHostel === "Other" ? null : selectedHostel;
+      let hasPartner = false;
+
+      if (hostelToCheck) {
+        const partners = await DeliveryPerson.filter({
+          is_available: true,
+          assigned_hostel: hostelToCheck
+        }).catch(() => []);
+        hasPartner = partners && partners.length > 0;
+      } else {
+        const partners = await DeliveryPerson.filter({ is_available: true }).catch(() => []);
+        hasPartner = partners && partners.length > 0;
+      }
+
+      if (!hasPartner) {
+        await warning(
+          hostelToCheck
+            ? `No delivery partners are currently available for ${hostelToCheck} hostel. Please try again in a few minutes or contact support.`
+            : "No delivery partners are currently available. Please try again in a few minutes or contact support.",
+          "No Delivery Partners Available"
+        );
+        return; // Stop here — don't open Razorpay
+      }
+    } catch (e) {
+      // If check fails, allow proceeding (don't block payment on network error)
+    }
+
     setIsPlacingOrder(true);
 
     try {
