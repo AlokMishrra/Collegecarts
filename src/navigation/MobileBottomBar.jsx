@@ -1,61 +1,75 @@
 /**
  * MobileBottomBar - Primary navigation like Swiggy/Blinkit/Zepto
  * 
- * Layout: Shop | Meals | Cart | Orders | Profile
- * - If admin: replaces Profile with Admin (Profile accessible from sidebar)
- * - If delivery: adds Delivery replacing Orders
- * - Cart always has badge counter
- * - Active tab has colored icon + indicator line on top
+ * When toggle is "Shop": Shop | Cart | Orders | Premium | Profile/Admin
+ * When toggle is "Meals": Meals | Menu | Plans | Orders | Profile/Admin
  */
 import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   ShoppingBag, UtensilsCrossed, ShoppingCart, Package, 
-  User, Crown, Settings, Truck 
+  User, Crown, Settings, Truck, ClipboardList, BookOpen, ListOrdered
 } from 'lucide-react';
 import { useNavigation } from './NavigationProvider';
 
-export default function MobileBottomBar({ cartCount = 0 }) {
+export default function MobileBottomBar({ cartCount = 0, showCartTab = true }) {
   const location = useLocation();
   const { user } = useNavigation();
 
   const isAdmin = user?.role === 'admin';
   const isDelivery = !!localStorage.getItem('deliveryPerson');
 
-  // Build tabs - exactly 5 like all major apps
+  const isMealsMode = location.pathname === '/meals' || location.pathname.startsWith('/meals');
+
   const tabs = useMemo(() => {
-    // Build tabs - exactly 5 like all major apps
-    const base = [
-      { id: 'shop', label: 'Shop', icon: ShoppingBag, route: '/shop', color: '#10b981' },
-      { id: 'meals', label: 'Meals', icon: UtensilsCrossed, route: '/meals', color: '#f97316' },
-      { id: 'premium', label: 'Premium', icon: Crown, route: '/subscription', color: '#a855f7' },
-      { id: 'orders', label: 'Orders', icon: Package, route: '/orders', color: '#3b82f6' },
-      { id: 'profile', label: 'Profile', icon: User, route: '/profile', color: '#64748b' },
+    if (isMealsMode) {
+      // Meals mode tabs
+      const mealTabs = [
+        { id: 'meals', label: 'Meals', icon: UtensilsCrossed, route: '/meals', color: '#f97316' },
+        { id: 'orders', label: 'Orders', icon: ClipboardList, route: '/Orders', color: '#3b82f6' },
+        { id: 'premium', label: 'Premium', icon: Crown, route: '/Subscription', color: '#a855f7' },
+      ];
+
+      if (isAdmin) {
+        mealTabs.push({ id: 'admin', label: 'Admin', icon: Settings, route: '/CCA', color: '#6366f1' });
+      } else if (isDelivery) {
+        mealTabs.push({ id: 'delivery', label: 'Delivery', icon: Truck, route: '/Delivery', color: '#0891b2' });
+      } else {
+        mealTabs.push({ id: 'profile', label: 'Profile', icon: User, route: '/Profile', color: '#64748b' });
+      }
+
+      return mealTabs;
+    }
+
+    // Shop mode tabs
+    const shopTabs = [
+      { id: 'shop', label: 'Shop', icon: ShoppingBag, route: '/Shop', color: '#10b981' },
+      ...(showCartTab ? [{ id: 'cart', label: 'Cart', icon: ShoppingCart, route: '/Cart', color: '#10b981', badge: cartCount }] : []),
+      { id: 'orders', label: 'Orders', icon: Package, route: '/Orders', color: '#3b82f6' },
+      { id: 'premium', label: 'Premium', icon: Crown, route: '/Subscription', color: '#a855f7' },
     ];
 
-    // If admin: replace Profile with Admin (profile moves to header)
     if (isAdmin) {
-      base[4] = { id: 'admin', label: 'Admin', icon: Settings, route: '/CCA', color: '#6366f1' };
+      shopTabs.push({ id: 'admin', label: 'Admin', icon: Settings, route: '/CCA', color: '#6366f1' });
+    } else if (isDelivery) {
+      shopTabs.push({ id: 'delivery', label: 'Delivery', icon: Truck, route: '/Delivery', color: '#0891b2' });
+    } else {
+      shopTabs.push({ id: 'profile', label: 'Profile', icon: User, route: '/Profile', color: '#64748b' });
     }
 
-    // If delivery partner (not admin): replace Profile with Delivery
-    if (isDelivery && !isAdmin) {
-      base[4] = { id: 'delivery', label: 'Delivery', icon: Truck, route: '/Delivery', color: '#0891b2' };
-    }
-
-    return base;
-  }, [isAdmin, isDelivery]);
+    return shopTabs;
+  }, [isMealsMode, isAdmin, isDelivery, cartCount, showCartTab]);
 
   const isActive = (tab) => {
-    const path = location.pathname.toLowerCase();
-    if (tab.id === 'cart') return path === '/cart';
-    if (tab.id === 'shop') return path === '/shop' || path === '/';
+    const path = location.pathname;
+    if (tab.id === 'shop') return path === '/Shop' || path === '/';
+    if (tab.id === 'cart') return path === '/Cart';
     if (tab.id === 'meals') return path.startsWith('/meals');
-    if (tab.id === 'orders') return path.startsWith('/orders');
-    if (tab.id === 'profile') return path.startsWith('/profile');
-    if (tab.id === 'premium') return path.startsWith('/subscription') || path.startsWith('/loyalty');
-    if (tab.id === 'admin') return path === '/cca';
-    if (tab.id === 'delivery') return path === '/delivery';
+    if (tab.id === 'orders') return path === '/Orders';
+    if (tab.id === 'profile') return path === '/Profile';
+    if (tab.id === 'premium') return path === '/Subscription' || path.startsWith('/Loyalty');
+    if (tab.id === 'admin') return path === '/CCA';
+    if (tab.id === 'delivery') return path === '/Delivery';
     return false;
   };
 
@@ -84,6 +98,11 @@ export default function MobileBottomBar({ cartCount = 0 }) {
                   className="w-[22px] h-[22px] transition-colors"
                   style={{ color: active ? tab.color : '#9ca3af' }}
                 />
+                {tab.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2 bg-emerald-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                    {tab.badge > 9 ? '9+' : tab.badge}
+                  </span>
+                )}
               </div>
               <span 
                 className="text-[10px] mt-0.5 font-medium transition-colors"

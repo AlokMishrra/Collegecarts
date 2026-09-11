@@ -63,6 +63,7 @@ import RefundsCancellations from './pages/RefundsCancellations';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import AboutUs from './pages/AboutUs';
 import Meals from './pages/Meals';
+import ForgotPassword from './pages/ForgotPassword';
 
 import { NavigationProvider } from '@/navigation/NavigationProvider';
 import { ModuleLayout } from '@/navigation';
@@ -144,6 +145,7 @@ const AuthenticatedApp = () => {
       {/* ── Public routes — no auth needed ── */}
       <Route path="/login" element={<Login />} />
       <Route path="/Login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/ContactUs" element={<LayoutWrapper currentPageName="Contact Us"><ContactUs /></LayoutWrapper>} />
       <Route path="/contact" element={<LayoutWrapper currentPageName="Contact Us"><ContactUs /></LayoutWrapper>} />
       <Route path="/TermsConditions" element={<LayoutWrapper currentPageName="Terms & Conditions"><TermsConditions /></LayoutWrapper>} />

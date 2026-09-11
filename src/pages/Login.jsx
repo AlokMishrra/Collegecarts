@@ -28,8 +28,8 @@ const Btn = ({ children, onClick, disabled, variant = 'primary', type = 'button'
   </button>
 );
 
-// ─── OTP 8-box input ─────────────────────────────────────────────────────────
-const OTP_LENGTH = 8;
+// ─── OTP 6-box input ─────────────────────────────────────────────────────────
+const OTP_LENGTH = 6;
 
 const OTPInput = ({ value, onChange }) => {
   const digits = (value + ' '.repeat(OTP_LENGTH)).slice(0, OTP_LENGTH).split('');
@@ -227,23 +227,25 @@ export default function Login() {
     setIsLoading(true);
     clearError();
     try {
-      const { error: err } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}${from}`,
+      // Send OTP via custom edge function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const otpRes = await fetch(`${supabaseUrl}/functions/v1/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
         },
+        body: JSON.stringify({ email }),
       });
-      if (err) {
-        if (err.status === 429 || err.message?.toLowerCase().includes('rate limit') || err.message?.toLowerCase().includes('too many')) {
-          setError('Too many attempts. Please wait 2 minutes before trying again.');
-          setResendCooldown(120);
-        } else {
-          setError(err.message);
-        }
+
+      const otpData = await otpRes.json();
+      if (!otpRes.ok || otpData.error) {
+        setError(otpData.error || 'Failed to send verification code. Please try again.');
         return;
       }
+
       setView('otp_verify');
       setResendCooldown(120);
     } catch (err) {
@@ -257,30 +259,54 @@ export default function Login() {
   const handleVerifyOTP = async (e) => {
     e?.preventDefault();
     const code = otp.replace(/\s/g, '');
-    if (code.length !== 8) { setError('Enter the 8-digit code'); return; }
+    if (code.length !== 6) { setError('Enter the 6-digit code'); return; }
     setIsLoading(true);
     clearError();
     try {
-      // Supabase OTP type for email signup confirmation is 'email'
-      // (not 'signup' — that's for magic-link flow)
-      const { data, error: err } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: 'email',
+      // Step 1: Verify OTP via custom database function
+      const { data: isValid, error: verifyErr } = await supabase.rpc('verify_otp', {
+        p_email: email,
+        p_code: code,
       });
-      if (err) {
-        // Give a clear message instead of the raw Supabase error
-        if (err.message?.toLowerCase().includes('expired') || err.message?.toLowerCase().includes('invalid') || err.status === 403) {
-          setError('This code is invalid or has expired. Please request a new one.');
-        } else {
-          setError(err.message);
-        }
+
+      if (verifyErr || !isValid) {
+        setError('This code is invalid or has expired. Please request a new one.');
         return;
       }
-      if (data?.session) {
-        await ensureProfile(data.session.user, fullName);
-        navigate(from, { replace: true });
+
+      // Step 2: Create/confirm user via admin API
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const confirmRes = await fetch(`${supabaseUrl}/functions/v1/confirm-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ email, password, full_name: fullName }),
+      });
+
+      const confirmData = await confirmRes.json();
+      if (!confirmRes.ok || confirmData.error) {
+        setError(confirmData.error || 'Failed to verify account. Please try again.');
+        return;
       }
+
+      // Step 3: Sign in with password
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInErr) {
+        setError('Account verified but sign-in failed. Please try signing in from the login page.');
+        setView('signin');
+        return;
+      }
+
+      await ensureProfile(signInData.session.user, fullName);
+      navigate(from, { replace: true });
     } catch (err) {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -294,21 +320,25 @@ export default function Login() {
     setIsLoading(true);
     clearError();
     try {
-      // Re-trigger signup to get a fresh OTP sent
-      const { error: err } = await supabase.auth.resend({
-        type: 'signup',
-        email,
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const otpRes = await fetch(`${supabaseUrl}/functions/v1/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ email }),
       });
-      if (err) {
-        if (err.status === 429) {
-          setError('Too many attempts. Please wait a few minutes before requesting a new code.');
-          setResendCooldown(120);
-        } else {
-          setError(err.message);
-        }
+
+      const otpData = await otpRes.json();
+      if (!otpRes.ok || otpData.error) {
+        setError(otpData.error || 'Failed to resend code. Please try again.');
         return;
       }
-      setResendCooldown(120); // 2 min cooldown to avoid rate limits
+
+      setResendCooldown(120);
     } catch (err) {
       setError('Failed to resend. Please try again later.');
     } finally {
@@ -392,6 +422,14 @@ export default function Login() {
               autoComplete="current-password"
             />
           </div>
+          <div className="flex justify-end -mt-1">
+            <button
+              onClick={() => navigate('/forgot-password')}
+              className="text-sm font-semibold text-emerald-600 hover:underline"
+            >
+              Forgot password?
+            </button>
+          </div>
         </div>
 
         {error && <p className="text-red-500 text-sm bg-red-50 p-3 rounded-xl">{error}</p>}
@@ -413,7 +451,7 @@ export default function Login() {
   if (view === 'signup') return (
     <Shell onBack={() => { setView('landing'); clearError(); }}>
       <h2 className="text-xl font-bold text-gray-900 mb-1">Create account</h2>
-      <p className="text-gray-500 text-sm mb-6">We'll send an 8-digit code to verify your email</p>
+      <p className="text-gray-500 text-sm mb-6">We'll send a 6-digit code to verify your email</p>
 
       <form onSubmit={handleSignUp} className="space-y-4">
         <div>
@@ -494,7 +532,7 @@ export default function Login() {
         </div>
         <h2 className="text-xl font-bold text-gray-900">Verify your email</h2>
         <p className="text-gray-500 text-sm text-center mt-1">
-          We sent an 8-digit code to<br />
+          We sent a 6-digit code to<br />
           <span className="font-semibold text-gray-700">{email}</span>
         </p>
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-3 text-center">
@@ -507,7 +545,7 @@ export default function Login() {
 
         {error && <p className="text-red-500 text-sm bg-red-50 p-3 rounded-xl text-center">{error}</p>}
 
-        <Btn type="submit" disabled={isLoading || otp.replace(/\s/g, '').length !== 8}>
+        <Btn type="submit" disabled={isLoading || otp.replace(/\s/g, '').length !== 6}>
           {isLoading ? <><Loader2 size={16} className="animate-spin" /> Verifying...</> : 'Verify & Continue'}
         </Btn>
       </form>

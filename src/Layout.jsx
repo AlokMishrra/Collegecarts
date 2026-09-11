@@ -21,6 +21,7 @@ import NotificationCenter from "./components/shared/NotificationCenter";
 import FeedbackPopup from "./components/shop/FeedbackPopup";
 import AIAssistant from "./components/chat/AIAssistant";
 import InAppChat from "./components/chat/InAppChat";
+import ModeToggle from "./components/ModeToggle";
 
 // Memoized navigation item component to prevent unnecessary re-renders
 const NavigationItem = memo(({ item, isActive, onClick }) => {
@@ -233,7 +234,8 @@ export default function Layout({ children, currentPageName }) {
               <h1 className="text-xl font-bold text-emerald-600">CollegeCart</h1>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className="flex items-center gap-2">
+            <ModeToggle />
             <NotificationCenter />
             {user && (
               <button
@@ -361,9 +363,12 @@ export default function Layout({ children, currentPageName }) {
         {/* Main Content */}
         <main className="flex-1 min-w-0 lg:ml-64 flex flex-col min-h-screen pt-[57px] lg:pt-0">
           <div className="hidden lg:flex items-center justify-between p-6 bg-white border-b border-gray-200 fixed top-0 right-0 left-64 z-40 safe-area-top">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {currentPageName || 'CollegeCart'}
-            </h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {currentPageName || 'CollegeCart'}
+              </h1>
+              <ModeToggle />
+            </div>
             <div className="flex items-center gap-4">
               {user && <InAppChat currentUser={user} />}
               {user && !isDeliveryOnlyRole && (

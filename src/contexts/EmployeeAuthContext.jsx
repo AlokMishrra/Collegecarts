@@ -93,8 +93,10 @@ export const EmployeeAuthProvider = ({ children }) => {
 
       if (emailOrPhone.includes('@')) {
         query = query.eq('email', emailOrPhone);
-      } else {
+      } else if (/^\d{10}$/.test(emailOrPhone)) {
         query = query.eq('phone', emailOrPhone);
+      } else {
+        query = query.eq('employee_code', emailOrPhone);
       }
 
       const { data: employeeData, error: employeeError } = await query.single();

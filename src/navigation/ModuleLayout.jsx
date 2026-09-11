@@ -4,8 +4,9 @@
  * Wraps all authenticated pages
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Menu, ShoppingCart, Bell, Search, LogOut } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Menu, ShoppingCart, Bell, Search, LogOut, User as UserIcon } from 'lucide-react';
+import FloatingCartButton from '@/components/FloatingCartButton';
 import { useNavigation } from './NavigationProvider';
 import DynamicSidebar from './DynamicSidebar';
 import MobileBottomBar from './MobileBottomBar';
@@ -16,9 +17,12 @@ import { Badge } from '@/components/ui/badge';
 import NotificationCenter from '@/components/shared/NotificationCenter';
 import AIAssistant from '@/components/chat/AIAssistant';
 import InAppChat from '@/components/chat/InAppChat';
+import ModeToggle from '@/components/ModeToggle';
+
 
 export default function ModuleLayout({ children }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     currentModuleDef, 
     sidebarCollapsed, 
@@ -27,6 +31,8 @@ export default function ModuleLayout({ children }) {
   } = useNavigation();
   
   const [cartCount, setCartCount] = useState(0);
+  const [floatingCartVisible, setFloatingCartVisible] = useState(false);
+  const isMealsMode = location.pathname === '/meals' || location.pathname.startsWith('/meals');
 
   const loadCartCount = useCallback(async () => {
     if (!user?.id) return;
@@ -69,39 +75,38 @@ export default function ModuleLayout({ children }) {
         </button>
         
         <div className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-2">
-            <div 
-              className="w-6 h-6 rounded-md flex items-center justify-center"
-              style={{ background: `${currentModuleDef.color}15` }}
-            >
-              <currentModuleDef.icon className="w-3.5 h-3.5" style={{ color: currentModuleDef.color }} />
-            </div>
-            <span className="font-bold text-gray-900 text-sm">{currentModuleDef.name}</span>
-          </div>
+          <ModeToggle />
         </div>
 
         <div className="flex items-center gap-1">
           <NotificationCenter />
-          <Link to="/cart" className="relative p-2 rounded-lg hover:bg-gray-100">
-            <ShoppingCart className="w-5 h-5 text-gray-600" />
-            {cartCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 bg-emerald-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {cartCount > 9 ? '9+' : cartCount}
-              </span>
-            )}
-          </Link>
-          {user && (user.role === 'admin' || !!localStorage.getItem('deliveryPerson')) && (
-            <Link to="/profile" className="p-1 ml-0.5">
+          {isMealsMode ? (
+            /* Meals mode: show cart in header since bottom bar doesn't have it */
+            <Link to="/Cart" className="relative p-2 rounded-lg hover:bg-gray-100">
+              <ShoppingCart className="w-5 h-5 text-gray-600" />
+              {cartCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 bg-emerald-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
+          ) : (
+            /* Shop mode: show profile since bottom bar has cart */
+            <Link to="/Profile" className="p-1">
               <div 
                 className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
                 style={{ background: currentModuleDef.color }}
               >
-                {user.full_name?.charAt(0) || 'U'}
+                {user?.full_name?.charAt(0) || 'U'}
               </div>
             </Link>
           )}
         </div>
       </header>
+      {/* Floating Cart Button (mobile only) - positioned above bottom bar */}
+      <div className="lg:hidden">
+        <FloatingCartButton onCartStateChange={setFloatingCartVisible} />
+      </div>
 
       {/* Desktop Top Bar */}
       <header 
@@ -109,8 +114,11 @@ export default function ModuleLayout({ children }) {
           sidebarCollapsed ? 'left-16' : 'left-60'
         }`}
       >
+        {/* Mode Toggle */}
+        <ModeToggle />
+
         {/* Search */}
-        <div className="flex-1 max-w-md">
+        <div className="flex-1 max-w-md ml-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -124,7 +132,7 @@ export default function ModuleLayout({ children }) {
         {/* Right Actions */}
         <div className="flex items-center gap-2 ml-4">
           {user && <InAppChat currentUser={user} />}
-          <Link to="/cart" className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
+          <Link to="/Cart" className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <ShoppingCart className="w-5 h-5 text-gray-600" />
             {cartCount > 0 && (
               <Badge className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center p-0 bg-emerald-600 text-white text-[9px]">
@@ -155,7 +163,7 @@ export default function ModuleLayout({ children }) {
       </main>
 
       {/* Mobile Bottom Bar */}
-      <MobileBottomBar cartCount={cartCount} />
+      <MobileBottomBar cartCount={cartCount} showCartTab={!floatingCartVisible} />
 
       {/* AI Assistant */}
       <AIAssistant user={user} />
