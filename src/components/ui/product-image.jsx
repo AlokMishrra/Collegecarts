@@ -11,6 +11,9 @@ export const FALLBACK_IMG =
   "font-family='Arial,sans-serif' font-size='13' fill='%239ca3af'%3ENo image%3C/text%3E" +
   "%3C/svg%3E";
 
+// Known bad cert/hosts — skip probe entirely and use fallback immediately
+const BAD_HOSTS = ['mydukaan.io'];
+
 // ── URL probe cache ───────────────────────────────────────────────────────
 // Remembers which URLs are good/bad so we never probe the same URL twice.
 // 'ok' | 'bad' | undefined
@@ -23,6 +26,10 @@ const _urlCache = new Map();
  */
 function probeUrl(url) {
   if (!url) return Promise.resolve('bad');
+  if (BAD_HOSTS.some(h => url.includes(h))) {
+    _urlCache.set(url, 'bad');
+    return Promise.resolve('bad');
+  }
   const cached = _urlCache.get(url);
   if (cached) return Promise.resolve(cached);
 

@@ -25,35 +25,53 @@ export class Entity {
    * @param {number} limit    - max rows
    */
   async filter(filters = {}, orderBy = null, limit = null) {
-    let query = supabase.from(this.table).select('*');
-
-    // Apply equality filters
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        query = query.eq(key, value);
+    // If limit specified, single query (PostgREST max_rows handles cap)
+    if (limit) {
+      let query = supabase.from(this.table).select('*');
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) query = query.eq(key, value);
+      });
+      if (orderBy) {
+        const desc = orderBy.startsWith('-');
+        const col = desc ? orderBy.slice(1) : orderBy;
+        query = query.order(this._mapField(col), { ascending: !desc });
+      } else {
+        const defaultCol = (this.table === 'support_tickets' || this.table === 'support_ticket_comments') ? 'created_date' : 'created_at';
+        query = query.order(defaultCol, { ascending: false });
       }
-    });
-
-    // Apply ordering
-    if (orderBy) {
-      const desc = orderBy.startsWith('-');
-      const col = desc ? orderBy.slice(1) : orderBy;
-      // Map Base44 field names to Supabase column names
-      const mappedCol = this._mapField(col);
-      query = query.order(mappedCol, { ascending: !desc });
-    } else {
-      // Default ordering - use created_date for support tables, created_at for others
-      const defaultCol = (this.table === 'support_tickets' || this.table === 'support_ticket_comments') 
-        ? 'created_date' 
-        : 'created_at';
-      query = query.order(defaultCol, { ascending: false });
+      query = query.limit(limit);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []).map(row => this._mapOut(row));
     }
 
-    if (limit) query = query.limit(limit);
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []).map(row => this._mapOut(row));
+    // No limit → fetch ALL via pagination (bypasses 1000-row PostgREST max_rows)
+    const pageSize = 1000;
+    let from = 0;
+    const all = [];
+    while (true) {
+      let query = supabase.from(this.table).select('*');
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) query = query.eq(key, value);
+      });
+      if (orderBy) {
+        const desc = orderBy.startsWith('-');
+        const col = desc ? orderBy.slice(1) : orderBy;
+        query = query.order(this._mapField(col), { ascending: !desc });
+      } else {
+        const defaultCol = (this.table === 'support_tickets' || this.table === 'support_ticket_comments') ? 'created_date' : 'created_at';
+        query = query.order(defaultCol, { ascending: false });
+      }
+      query = query.range(from, from + pageSize - 1);
+      const { data, error } = await query;
+      if (error) throw error;
+      all.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+      // Safety cap 10k rows (admin never needs more in one view)
+      if (from >= 10000) break;
+    }
+    return all.map(row => this._mapOut(row));
   }
 
   /**
@@ -85,7 +103,7 @@ export class Entity {
     
     // Determine the correct updated timestamp column name
     // Tables without an updated_at/updated_date column must be excluded.
-    const NO_TIMESTAMP_TABLES = ['subscriptions', 'loyalty_transactions', 'campaign_usage', 'referrals', 'wishlists', 'wallet_transactions', 'chat_messages', 'knowledge_articles', 'gamification', 'onboarding_progress', 'admin_activity_log', 'shifts', 'hostels', 'delivery_queries', 'error_logs', 'reviews', 'categories'];
+    const NO_TIMESTAMP_TABLES = ['subscriptions', 'loyalty_transactions', 'campaign_usage', 'referrals', 'wishlists', 'wallet_transactions', 'chat_messages', 'knowledge_articles', 'gamification', 'onboarding_progress', 'admin_activity_log', 'shifts', 'hostels', 'delivery_queries', 'error_logs', 'reviews', 'categories', 'banners', 'promo_popups'];
     
     let timestampPatch = {};
     if (this.table === 'support_tickets' || this.table === 'support_ticket_comments') {

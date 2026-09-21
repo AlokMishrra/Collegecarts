@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, ShoppingCart, Bell, Search, LogOut, User as UserIcon } from 'lucide-react';
-import FloatingCartButton from '@/components/FloatingCartButton';
+import CartPopup from '@/components/CartPopup';
 import { useNavigation } from './NavigationProvider';
 import DynamicSidebar from './DynamicSidebar';
 import MobileBottomBar from './MobileBottomBar';
@@ -31,8 +31,21 @@ export default function ModuleLayout({ children }) {
   } = useNavigation();
   
   const [cartCount, setCartCount] = useState(0);
-  const [floatingCartVisible, setFloatingCartVisible] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState(user?.profile_photo || "");
   const isMealsMode = location.pathname === '/meals' || location.pathname.startsWith('/meals');
+
+  useEffect(() => {
+    const refreshProfilePhoto = async () => {
+      try {
+        const fresh = await User.me();
+        if (fresh?.profile_photo) setProfilePhoto(fresh.profile_photo);
+      } catch {}
+    };
+    if (user?.profile_photo) setProfilePhoto(user.profile_photo);
+    refreshProfilePhoto();
+    window.addEventListener('profileUpdated', refreshProfilePhoto);
+    return () => window.removeEventListener('profileUpdated', refreshProfilePhoto);
+  }, [user?.id]);
 
   const loadCartCount = useCallback(async () => {
     if (!user?.id) return;
@@ -93,19 +106,29 @@ export default function ModuleLayout({ children }) {
           ) : (
             /* Shop mode: show profile since bottom bar has cart */
             <Link to="/Profile" className="p-1">
-              <div 
-                className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                style={{ background: currentModuleDef.color }}
-              >
-                {user?.full_name?.charAt(0) || 'U'}
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-[#10b981] text-white text-xs font-bold flex-shrink-0">
+                {profilePhoto ? (
+                  <img
+                    src={profilePhoto}
+                    alt={user?.full_name || "User"}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                  />
+                ) : null}
+                <span
+                  className="items-center justify-center w-full h-full"
+                  style={{ display: profilePhoto ? 'none' : 'flex' }}
+                >
+                  {(user?.full_name || "U").charAt(0).toUpperCase()}
+                </span>
               </div>
             </Link>
           )}
         </div>
       </header>
-      {/* Floating Cart Button (mobile only) - positioned above bottom bar */}
+      {/* Cart Popup (Blinkit-style) */}
       <div className="lg:hidden">
-        <FloatingCartButton onCartStateChange={setFloatingCartVisible} />
+        <CartPopup />
       </div>
 
       {/* Desktop Top Bar */}
@@ -163,7 +186,7 @@ export default function ModuleLayout({ children }) {
       </main>
 
       {/* Mobile Bottom Bar */}
-      <MobileBottomBar cartCount={cartCount} showCartTab={!floatingCartVisible} />
+      <MobileBottomBar cartCount={cartCount} showCartTab={false} />
 
       {/* AI Assistant */}
       <AIAssistant user={user} />

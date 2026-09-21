@@ -49,6 +49,7 @@
  */
 import CCA from './pages/CCA';
 import Cart from './pages/Cart';
+import Categories from './pages/Categories';
 import CategoryProducts from './pages/CategoryProducts';
 import Delivery from './pages/Delivery';
 import Home from './pages/Home';
@@ -66,6 +67,7 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "CCA": CCA,
     "Cart": Cart,
+    "Categories": Categories,
     "CategoryProducts": CategoryProducts,
     "Delivery": Delivery,
     "Home": Home,

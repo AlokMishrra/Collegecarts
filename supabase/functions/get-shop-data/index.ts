@@ -124,7 +124,7 @@ serve(async (req) => {
         status: 304,
         headers: {
           ...corsHeaders,
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
           "ETag": etag,
         },
       });
@@ -141,9 +141,9 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         "Content-Type": "application/json; charset=utf-8",
-        // CDN caches for 60s, serves stale for 120s while revalidating.
-        // All 10k users share this one cached response per CDN PoP.
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120, no-transform",
+        // CDN caches for 300s (5m), serves stale for 600s while revalidating.
+        // Cuts Edge→DB hits 5x: 60s → 300s = 5 GB egress → ~1 GB. All 10k users share one PoP cache.
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, no-transform",
         "Vary":          "Accept-Encoding",
         "ETag":          etag,
       },

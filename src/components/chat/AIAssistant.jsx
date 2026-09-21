@@ -443,9 +443,9 @@ Please provide more details!`;
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-2 left-2 right-2 md:bottom-6 md:right-6 md:left-auto z-50 md:w-[420px]"
+            className="fixed bottom-[84px] left-2 right-2 md:bottom-6 md:right-6 md:left-auto z-50 md:w-[420px]"
           >
-            <Card className="shadow-2xl overflow-hidden max-h-[calc(100vh-80px)] flex flex-col">
+            <Card className="shadow-2xl overflow-hidden max-h-[calc(100vh-100px)] md:max-h-[calc(100vh-80px)] flex flex-col">
               <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-3 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -494,7 +494,7 @@ Please provide more details!`;
                 )}
                 
                 {/* Messages */}
-                <div className="h-[400px] overflow-y-auto p-3 space-y-3 bg-gradient-to-b from-gray-50 to-white">
+                <div className="flex-1 min-h-[260px] max-h-[min(400px,40vh)] md:max-h-[400px] overflow-y-auto p-3 space-y-3 bg-gradient-to-b from-gray-50 to-white">
                   {messages.map((message) => (
                     <div key={message.id}>
                       <div className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -685,10 +685,10 @@ Please provide more details!`;
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed bottom-2 left-2 right-2 md:bottom-6 md:right-6 md:left-auto z-50 md:w-[420px]"
+            className="fixed bottom-[84px] left-2 right-2 md:bottom-6 md:right-6 md:left-auto z-50 md:w-[420px]"
           >
-            <Card className="shadow-2xl overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-4">
+            <Card className="shadow-2xl overflow-hidden max-h-[calc(100vh-100px)] flex flex-col">
+              <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-4 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base font-semibold">
                     {userLanguage === 'hinglish' ? 'Kaise contact karein?' : 'How would you like to contact us?'}

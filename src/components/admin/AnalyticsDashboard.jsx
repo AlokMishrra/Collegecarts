@@ -37,7 +37,21 @@ export default function AnalyticsDashboard() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Fetch all data in parallel
+      // Fetch all data in parallel — paginated to bypass 1000-row max_rows cap
+      const { supabase } = await import('@/lib/supabase');
+      const fetchAllOrdersFull = async () => {
+        const all = [];
+        let from = 0;
+        const size = 1000;
+        while (true) {
+          const { data, error } = await supabase.from('orders').select('*').range(from, from + size - 1).order('created_at', { ascending: false });
+          if (error) throw error;
+          all.push(...(data || []));
+          if (!data || data.length < size) break;
+          from += size;
+        }
+        return all;
+      };
       const [
         allOrders,
         allDeliveryPersons,
@@ -45,7 +59,7 @@ export default function AnalyticsDashboard() {
         withdrawalRequests,
         allProducts
       ] = await Promise.all([
-        base44.entities.Order.list(),
+        fetchAllOrdersFull(),
         base44.entities.DeliveryPerson.list(),
         base44.entities.Order.filter({ is_scheduled: true, status: 'scheduled' }),
         base44.entities.WithdrawalRequest?.filter({ status: 'pending' }).catch(() => []),
@@ -58,23 +72,27 @@ export default function AnalyticsDashboard() {
         return orderDate >= today;
       });
 
-      // Calculate today's revenue
-      const todayRevenue = todayOrders.reduce((sum, order) => 
-        sum + (order.total_amount || 0), 0
-      );
+      // ── 19 Aug 2026 – 21 Sep 2026 IST: delivered only, exclude cancelled ──
+      const rangeStart = new Date('2026-08-19T00:00:00+05:30');
+      const rangeEnd   = new Date('2026-09-21T23:59:59+05:30');
+      const deliveredInRange = allOrders.filter(o => {
+        if (!o.created_at) return false;
+        const d = new Date(o.created_at);
+        return o.status === 'delivered' && o.status !== 'cancelled' && d >= rangeStart && d <= rangeEnd;
+      });
 
-      // Calculate total revenue
-      const totalRevenue = allOrders.reduce((sum, order) => 
-        sum + (order.total_amount || 0), 0
-      );
+      const todayRevenue = todayOrders
+        .filter(o => o.status === 'delivered' && o.status !== 'cancelled')
+        .reduce((sum, order) => sum + (Number(order.total_amount) || 0), 0);
 
-      // Calculate delivery costs (₹20 per delivery)
+      // Analytics totals = delivered in 20 Aug–20 Sep, exclude cancelled
+      const totalRevenue = deliveredInRange
+        .reduce((sum, order) => sum + (Number(order.total_amount) || 0), 0);
+      const deliveredCountSince19Aug = deliveredInRange.length;
+
+      // Delivery costs & profit — also in range
       const deliveryCostPerOrder = 20;
-      const totalDeliveryCost = allOrders.filter(o => 
-        o.status === 'delivered'
-      ).length * deliveryCostPerOrder;
-
-      // Estimated profit (revenue - delivery costs)
+      const totalDeliveryCost = deliveredCountSince19Aug * deliveryCostPerOrder;
       const estimatedProfit = totalRevenue - totalDeliveryCost;
 
       // Active delivery partners
@@ -95,9 +113,9 @@ export default function AnalyticsDashboard() {
           }, 0) / deliveredOrders.length / 60000 // Convert to minutes
         : 0;
 
-      // Top 10 best-selling products
+      // Top 10 best-selling products — in 20 Aug–20 Sep delivered only
       const productSales = {};
-      allOrders.forEach(order => {
+      deliveredInRange.forEach(order => {
         order.items?.forEach(item => {
           if (!productSales[item.product_id]) {
             productSales[item.product_id] = {
@@ -130,7 +148,9 @@ export default function AnalyticsDashboard() {
 
       setStats({
         todayOrders: todayOrders.length,
-        totalOrders: allOrders.length,
+        totalOrders: deliveredCountSince19Aug,
+        totalOrdersAll: allOrders.length,
+        deliveredSince19Aug: deliveredCountSince19Aug,
         todayRevenue,
         totalRevenue,
         estimatedProfit,
@@ -165,8 +185,13 @@ export default function AnalyticsDashboard() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
           <p className="text-sm text-gray-600">
-            Last updated: {lastUpdated.toLocaleTimeString()}
+            Revenue & orders: <span className="font-semibold text-emerald-700">Delivered 19 Aug – 21 Sep 2026 • exclude cancelled</span> • Last updated: {lastUpdated.toLocaleTimeString()}
           </p>
+          {stats && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              {stats.deliveredSince19Aug} delivered orders • ₹{stats.totalRevenue.toLocaleString('en-IN')} total • ₹{(stats.totalRevenue / (stats.deliveredSince19Aug || 1)).toFixed(2)} avg
+            </p>
+          )}
         </div>
         <Button
           onClick={loadAnalytics}

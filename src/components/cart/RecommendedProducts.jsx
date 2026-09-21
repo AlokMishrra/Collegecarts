@@ -3,10 +3,10 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
+import CompactProductCard from "@/components/shop/CompactProductCard";
 
 export default function RecommendedProducts({ onAddToCart, cartItems, amountNeededForFreeDelivery }) {
   const [recommendedProducts, setRecommendedProducts] = useState([]);
-  const [imageLoaded, setImageLoaded] = useState({});
 
   useEffect(() => {
     loadRecommendedProducts();
@@ -93,58 +93,13 @@ export default function RecommendedProducts({ onAddToCart, cartItems, amountNeed
         <div className="grid grid-cols-2 gap-3">
           {recommendedProducts.map((product) => {
             return (
-              <div key={product.id}>
-                <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 border border-gray-200 bg-white rounded-xl flex flex-col h-[220px]">
-                  <div className="relative overflow-hidden bg-white p-2 flex-shrink-0">
-                    {/* Free Delivery Badge */}
-                    <div className="absolute top-1 left-1 bg-emerald-500 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
-                      <span>Free Delivery</span>
-                      <span className="text-[8px]">⏱ {product.delivery_time || '10 mins'}</span>
-                    </div>
-                    
-                    {/* Product Image */}
-                    {!imageLoaded[product.id] && (
-                      <div className="w-full h-20 bg-gray-200 skeleton animate-pulse rounded" />
-                    )}
-                    <img
-                      src={product.image_url || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=100"}
-                      alt={product.name}
-                      loading="lazy"
-                      onLoad={() => setImageLoaded(prev => ({ ...prev, [product.id]: true }))}
-                      onError={(e) => e.target.src = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=100"}
-                      className={`w-full h-20 object-contain transition-all duration-500 ${
-                        imageLoaded[product.id] ? 'opacity-100' : 'opacity-0'
-                      }`}
-                      style={{ transition: 'opacity 200ms ease-in' }}
-                    />
-                  </div>
-
-                  <CardContent className="p-2 flex flex-col flex-1 justify-between">
-                    <div className="flex-shrink-0">
-                      <h3 className="font-semibold text-xs mb-0.5 line-clamp-1 text-gray-900 leading-tight h-4">
-                        {product.name}
-                      </h3>
-                      <p className="text-[10px] text-gray-500 mb-1.5 h-3">{product.unit || '100'}</p>
-                      
-                      <div className="flex items-baseline gap-1 mb-2 h-5">
-                        <span className="text-base font-bold text-gray-900">₹{product.price}</span>
-                        {product.original_price && product.original_price > product.price && (
-                          <span className="text-[10px] text-gray-400 line-through">₹{product.original_price}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex-shrink-0">
-                      <button
-                        onClick={() => onAddToCart(product)}
-                        className="w-full bg-white hover:bg-emerald-50 border-2 border-emerald-600 text-emerald-600 text-xs font-semibold py-1.5 rounded-lg transition-all"
-                      >
-                        ADD
-                      </button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <CompactProductCard
+                key={product.id}
+                product={product}
+                cartQty={0}
+                onAddToCart={onAddToCart}
+                inStock={(product.stock_quantity || 0) > 0}
+              />
             );
           })}
         </div>

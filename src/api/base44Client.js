@@ -30,6 +30,7 @@ const entities = {
   Refund: new Entity('refunds'),
   Role: new Entity('roles'),
   Banner: new Entity('banners'),
+  PromoPopup: new Entity('promo_popups'),
   Review: new Entity('reviews'),
   Combo: new Entity('combos'),
   Settings: new Entity('settings'),
@@ -123,15 +124,67 @@ const integrations = {
     // SMS — routes to send-sms edge function
     SendSMS: (payload) => callEdgeFunction('send-sms', payload),
 
-    // File upload — uses Supabase Storage directly
+    // File upload — resilient: tries multiple buckets, compresses, NEVER stores data: URL in DB (bloats 2-4MB per image)
     UploadFile: async ({ file, fileName, bucket = 'uploads' }) => {
-      const path = fileName || `${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
-      return { url: publicUrl, path: data.path };
+      // Client-side compress: resize to 800px, 0.72 quality — cuts 3MB photo to ~120KB before upload
+      const compressedFile = await (async () => {
+        if (!file.type.startsWith('image/')) return file;
+        if (file.size < 300 * 1024) return file; // already small
+        try {
+          const bitmap = await createImageBitmap(file);
+          const max = 900;
+          let { width, height } = bitmap;
+          if (width <= max && height <= max && file.size < 800 * 1024) return file;
+          const scale = Math.min(max / width, max / height, 1);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bitmap, 0, 0, width, height);
+          const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.72));
+          if (!blob || blob.size >= file.size) return file;
+          return new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+        } catch { return file; }
+      })();
+
+      const path = fileName || `${Date.now()}-${compressedFile.name}`;
+      const tryBuckets = [bucket, 'product-images', 'images', 'public', 'avatars', 'banners'];
+
+      // 1) Try existing buckets
+      for (const b of tryBuckets) {
+        try {
+          const { data, error } = await supabase.storage.from(b).upload(path, compressedFile, { upsert: true });
+          if (error) {
+            if (!String(error.message || '').toLowerCase().includes('bucket not found')) throw error;
+            continue;
+          }
+          const { data: { publicUrl } } = supabase.storage.from(b).getPublicUrl(path);
+          return { url: publicUrl, file_url: publicUrl, path: data.path };
+        } catch (e) {
+          if (!String(e.message || '').toLowerCase().includes('bucket not found')) throw e;
+        }
+      }
+
+      // 2) Try to create the requested bucket (needs storage admin; anon may fail — we handle it)
+      try {
+        const { error: createErr } = await supabase.storage.createBucket(bucket, { public: true });
+        if (!createErr) {
+          const { data, error } = await supabase.storage.from(bucket).upload(path, compressedFile, { upsert: true });
+          if (!error && data) {
+            const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
+            return { url: publicUrl, file_url: publicUrl, path: data.path };
+          }
+        }
+      } catch {}
+
+      // 3) No bucket — FAIL LOUD instead of storing 2-4MB data: URL in DB (was #1 DB bloat cause)
+      // Before: fallback stored base64 in products.image_url TEXT — 100 images = 300MB DB
+      throw new Error(
+        'Storage bucket missing — create a public bucket named "uploads" in Supabase Dashboard → Storage → New bucket (public). ' +
+        'Then retry upload. Data-URL fallback is disabled to prevent database bloat.'
+      );
     },
 
     // Image generation — routes to generate-image edge function

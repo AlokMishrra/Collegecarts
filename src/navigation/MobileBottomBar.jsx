@@ -8,7 +8,7 @@ import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   ShoppingBag, UtensilsCrossed, ShoppingCart, Package, 
-  User, Crown, Settings, Truck, ClipboardList, BookOpen, ListOrdered
+  User, Crown, Settings, Truck, ClipboardList, BookOpen, ListOrdered, LayoutGrid
 } from 'lucide-react';
 import { useNavigation } from './NavigationProvider';
 
@@ -41,9 +41,10 @@ export default function MobileBottomBar({ cartCount = 0, showCartTab = true }) {
       return mealTabs;
     }
 
-    // Shop mode tabs
+    // Shop mode tabs — Categories is the discovery hub like Zepto/Blinkit
     const shopTabs = [
       { id: 'shop', label: 'Shop', icon: ShoppingBag, route: '/Shop', color: '#10b981' },
+      { id: 'categories', label: 'Categories', icon: LayoutGrid, route: '/Categories', color: '#10b981' },
       ...(showCartTab ? [{ id: 'cart', label: 'Cart', icon: ShoppingCart, route: '/Cart', color: '#10b981', badge: cartCount }] : []),
       { id: 'orders', label: 'Orders', icon: Package, route: '/Orders', color: '#3b82f6' },
       { id: 'premium', label: 'Premium', icon: Crown, route: '/Subscription', color: '#a855f7' },
@@ -63,6 +64,7 @@ export default function MobileBottomBar({ cartCount = 0, showCartTab = true }) {
   const isActive = (tab) => {
     const path = location.pathname;
     if (tab.id === 'shop') return path === '/Shop' || path === '/';
+    if (tab.id === 'categories') return path === '/Categories' || path.startsWith('/CategoryProducts');
     if (tab.id === 'cart') return path === '/Cart';
     if (tab.id === 'meals') return path.startsWith('/meals');
     if (tab.id === 'orders') return path === '/Orders';

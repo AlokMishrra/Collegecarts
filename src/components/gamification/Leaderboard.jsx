@@ -49,13 +49,15 @@ export default function Leaderboard() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {leaders.map((leader, idx) => (
+          {leaders.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-6">No performers yet — complete orders to earn points.</p>
+          ) : leaders.map((leader, idx) => (
             <div key={leader.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
                 {getRankIcon(idx)}
                 <div>
                   <p className="font-medium">{leader.userName}</p>
-                  <p className="text-sm text-gray-600">Level {leader.level}</p>
+                  <p className="text-sm text-gray-600">{leader.badges?.length ? `${leader.badges.length} badges` : `Streak ${leader.streak_days || 0} days`}</p>
                 </div>
               </div>
               <Badge className="bg-purple-600">{leader.total_points} pts</Badge>

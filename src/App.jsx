@@ -1,5 +1,5 @@
 import './App.css'
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -304,6 +304,12 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  // Tell the boot splash (index.html) that React has mounted so it can
+  // fade out at the earliest possible moment.
+  useEffect(() => {
+    window.dispatchEvent(new Event('app-ready'));
+  }, []);
+
   return (
     <ErrorBoundary>
       <DialogProvider>

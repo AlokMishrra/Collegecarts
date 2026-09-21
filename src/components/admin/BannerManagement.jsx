@@ -26,8 +26,9 @@ export default function BannerManagement() {
     image_url: "",
     link_type: "internal",
     link_target: "",
-    background_color: "#10b981",
-    text_color: "#ffffff",
+    background_color: "#c4b5fd",
+    text_color: "#111827",
+    cta_text: "SHOP NOW",
     start_date: "",
     end_date: "",
     is_active: true,
@@ -63,8 +64,9 @@ export default function BannerManagement() {
       image_url: "",
       link_type: "internal",
       link_target: "",
-      background_color: "#10b981",
-      text_color: "#ffffff",
+      background_color: "#c4b5fd",
+      text_color: "#111827",
+      cta_text: "SHOP NOW",
       start_date: "",
       end_date: "",
       is_active: true,
@@ -81,8 +83,9 @@ export default function BannerManagement() {
       image_url: banner.image_url,
       link_type: banner.link_type || "internal",
       link_target: banner.link_target || "",
-      background_color: banner.background_color || "#10b981",
-      text_color: banner.text_color || "#ffffff",
+      background_color: banner.background_color || "#c4b5fd",
+      text_color: banner.text_color || "#111827",
+      cta_text: banner.cta_text || banner.cta || "SHOP NOW",
       start_date: banner.start_date ? new Date(banner.start_date).toISOString().slice(0, 16) : "",
       end_date: banner.end_date ? new Date(banner.end_date).toISOString().slice(0, 16) : "",
       is_active: banner.is_active !== false,
@@ -92,23 +95,60 @@ export default function BannerManagement() {
   };
 
   const handleSave = async () => {
+    // Map to real DB columns: description -> subtitle, link_target -> link_url
+    // New promo columns (background_color, text_color, cta_text, link_type) may not exist yet
+    const basePayload = {
+      title: formData.title,
+      subtitle: formData.description || null,
+      image_url: formData.image_url,
+      link_url: formData.link_target || null,
+      is_active: formData.is_active,
+      display_order: formData.display_order,
+      start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
+      end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
+    };
+    const fullPayload = {
+      ...basePayload,
+      description: formData.description || null,
+      background_color: formData.background_color,
+      text_color: formData.text_color,
+      cta_text: formData.cta_text,
+      link_type: formData.link_type,
+      link_target: formData.link_target,
+    };
+
+    const save = async (payload) => {
+      if (editingBanner) return base44.entities.Banner.update(editingBanner.id, payload);
+      return base44.entities.Banner.create(payload);
+    };
+
     try {
-      const data = {
-        ...formData,
-        start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
-        end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null
-      };
-
-      if (editingBanner) {
-        await base44.entities.Banner.update(editingBanner.id, data);
-      } else {
-        await base44.entities.Banner.create(data);
-      }
-
+      await save(fullPayload);
       setShowDialog(false);
       loadData();
     } catch (error) {
-      console.error("Error saving banner:", error);
+      // PGRST204 = column not in schema cache — retry with only base columns that always exist
+      const isMissingColumn = error?.code === 'PGRST204' || String(error?.message || '').includes('Could not find');
+      if (isMissingColumn) {
+        console.warn('Banner table missing promo columns, saving with fallback. Run the SQL migration to add them.', error.message);
+        try {
+          await save(basePayload);
+          setShowDialog(false);
+          loadData();
+          // Show hint once per session
+          if (!sessionStorage.getItem('cc-banner-migration-hint')) {
+            sessionStorage.setItem('cc-banner-migration-hint', '1');
+            alert('Banner saved (using fallback columns). To enable colors/CTA/link types, run the SQL in supabase/migrations/20260514000001_add_banner_promo_fields.sql in your Supabase SQL Editor.');
+          }
+          return;
+        } catch (e2) {
+          console.error("Error saving banner (fallback):", e2);
+          alert('Save failed: ' + (e2.message || 'unknown error'));
+        }
+      } else {
+        console.error("Error saving banner:", error);
+        alert('Save failed: ' + (error.message || 'unknown error'));
+      }
     }
   };
 
@@ -313,40 +353,50 @@ export default function BannerManagement() {
               <Input
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="e.g., Flash Sale - 50% Off!"
+                placeholder="e.g., Rich & Creamy Delight (use Enter for line break)"
               />
+              <p className="text-xs text-gray-500 mt-1">Tip: press Enter to split into 2 lines like the reference</p>
             </div>
 
             <div>
-              <Label>Description</Label>
-              <Textarea
+              <Label>Offer Text</Label>
+              <Input
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Short description or call to action"
-                rows={2}
+                placeholder="e.g., Up to 25% OFF"
               />
             </div>
 
             <div>
-              <Label>Banner Image *</Label>
+              <Label>Button Text</Label>
+              <Input
+                value={formData.cta_text}
+                onChange={(e) => setFormData({ ...formData, cta_text: e.target.value })}
+                placeholder="SHOP NOW"
+              />
+            </div>
+
+            <div>
+              <Label>Product Image (right side) *</Label>
               <ImageUploader
                 currentImage={formData.image_url}
                 onImageUploaded={(url) => setFormData({ ...formData, image_url: url })}
                 aspectRatio="banner"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Recommended: 1200x300px for best results
+                Recommended: transparent PNG of product, 600x600px
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Background Color</Label>
+                <Label>Card Background</Label>
                 <Input
                   type="color"
                   value={formData.background_color}
                   onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
                 />
+                <p className="text-xs text-gray-500 mt-1">Left side gradient base (purple like reference)</p>
               </div>
               <div>
                 <Label>Text Color</Label>
@@ -488,9 +538,10 @@ export default function BannerManagement() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        isOpen={!!deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
+        open={!!deleteConfirm}
+        onOpenChange={(o) => { if (!o) setDeleteConfirm(null); }}
         onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm(null)}
         title="Delete Banner"
         description={`Are you sure you want to delete "${deleteConfirm?.title}"? This action cannot be undone.`}
       />

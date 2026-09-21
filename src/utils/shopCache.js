@@ -43,10 +43,11 @@
 import { supabase } from "@/lib/supabase";
 
 // ── TTL ───────────────────────────────────────────────────────────────────
-// DISABLED CACHING FOR STOCK ACCURACY
-// Stock changes in real-time, caching causes out-of-stock items to show as available
-const FRESH_TTL          = 0;           // 0s   — ALWAYS fetch fresh (no cache)
-const STALE_TTL          = 0;           // 0s   — ALWAYS fetch fresh (no cache)
+// Re-enabled with stock-safe design: product base is cached, hostel_stock
+// is enriched client-side per-hostel (enrichProductsWithHostelStock) so
+// caching base data never shows stale stock. Cuts Egress ~5x (was 0s = every nav fetched).
+const FRESH_TTL          = 60_000;      // 60s  — serve instantly, zero network
+const STALE_TTL          = 300_000;     // 5m   — serve + revalidate in bg
 const MAX_RETRIES        = 3;
 const BASE_BACKOFF_MS    = 1000;        // 1s, 2s, 4s
 const RATE_LIMIT_BACKOFF = 30_000;      // 30s cooldown on 429
@@ -75,7 +76,7 @@ const _state = {
 
 // ── Cache version — bump this when the edge function changes ──────────────
 // On mismatch the browser cache is discarded and a fresh fetch is forced.
-const CACHE_VERSION = "v6-no-cache-stock"; // CACHING DISABLED - Stock accuracy critical
+const CACHE_VERSION = "v7-egress-fix-300s"; // Re-enabled 60s fresh / 5m stale + CDN 300s
 const _storedVersion = sessionStorage.getItem("cc_cache_version");
 if (_storedVersion !== CACHE_VERSION) {
   // Old cache is from a different version — discard it
@@ -138,7 +139,7 @@ async function fetchFromEdge() {
   // bust=3 forces a new CDN cache key after the edge fn was redeployed.
   // Increment this whenever the edge function is redeployed.
   const res = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-shop-data?bust=3`,
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-shop-data?bust=4`,
     { headers }
   );
 

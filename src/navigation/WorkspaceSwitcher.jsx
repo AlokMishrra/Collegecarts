@@ -37,9 +37,8 @@ export default function WorkspaceSwitcher() {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        onClick={() => setWorkspaceSwitcherOpen(!workspaceSwitcherOpen)}
-        className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-all duration-200 w-full"
+      <div
+        className="flex items-center gap-2.5 px-3 py-2 rounded-xl w-full"
       >
         <div 
           className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -51,8 +50,7 @@ export default function WorkspaceSwitcher() {
           <p className="text-sm font-semibold text-gray-900 truncate">{currentModuleDef.name}</p>
           <p className="text-[10px] text-gray-500 truncate">{currentModuleDef.tagline}</p>
         </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${workspaceSwitcherOpen ? 'rotate-180' : ''}`} />
-      </button>
+      </div>
 
       <AnimatePresence>
         {workspaceSwitcherOpen && (

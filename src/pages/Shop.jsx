@@ -13,12 +13,11 @@ import {
 } from "@/utils/shopCache";
 import { enrichProductsWithHostelStock } from "@/utils/hostelStockHelper";
 import { toast } from "sonner";
-import { Building2, ShoppingBag } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ShoppingBag } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import QuickAddToCart      from "../components/shop/QuickAddToCart";
+import CartPopup           from "../components/CartPopup";
 import EnhancedShopHero    from "../components/shop/EnhancedShopHero";
 import CategorySection     from "../components/shop/CategorySection";
 import CategoryFilter      from "../components/shop/CategoryFilter";
@@ -28,6 +27,7 @@ import RecommendationEngine from "../components/shop/RecommendationEngine";
 import EnhancedSearch      from "../components/shop/EnhancedSearch";
 import BannerCarousel      from "../components/shop/BannerCarousel";
 import ComboSection        from "../components/shop/ComboSection";
+import PromoPopup           from "../components/shop/PromoPopup";
 
 // ── Cart write debounce config ────────────────────────────────────────────
 // Batches rapid +/- taps into a single DB write per product.
@@ -329,12 +329,12 @@ export default function Shop() {
 
   // ── Stock helpers ─────────────────────────────────────────────────────
   const getHostelStock = useCallback((product) => {
-    // Use enriched hostel stock if available
-    if (product.hostel_stock_quantity !== undefined) {
-      return product.hostel_stock_quantity;
+    // Prefer hostel-specific, but fallback to total stock so items remain orderable (e.g., Mithali 0 but total 10)
+    if (product.hostel_stock_quantity !== undefined && product.hostel_stock_quantity !== null) {
+      if (product.hostel_stock_quantity > 0) return product.hostel_stock_quantity;
+      if ((product.stock_quantity || 0) > 0) return product.stock_quantity;
+      return 0;
     }
-    
-    // Fallback to total stock
     return product.stock_quantity || 0;
   }, []);
 
@@ -449,7 +449,14 @@ export default function Shop() {
     console.log('[Shop] ========================================');
     
     setProducts(sorted);
-    setCategories(rawCategories);
+    // Enrich categories: fall back to a sample product image when the
+    // category itself has no image, so pills always show a real thumbnail
+    const enrichedCategories = (rawCategories || []).map(cat => {
+      if (cat.image_url) return cat;
+      const sample = sorted.find(p => p.category_id === cat.id && p.image_url);
+      return sample ? { ...cat, image_url: sample.image_url } : cat;
+    });
+    setCategories(enrichedCategories);
   }, [user?.selected_hostel]);
 
   const loadData = useCallback(async (signal, forceRefresh = false) => {
@@ -521,20 +528,20 @@ export default function Shop() {
         if (deleteErr) throw deleteErr;
         notifyCartUpdate();
       } else {
-        // Always upsert to prevent any stale ID or 406 Not Acceptable errors!
-        const { data: created, error: upsertErr } = await supabase
-          .from('cart_items')
-          .upsert(
-            { product_id: productId, user_id: user.id, quantity: targetQty },
-            { onConflict: 'user_id,product_id' }
-          )
-          .select()
-          .maybeSingle();
+        // Check if item already exists for this user+product
+        const existing = await CartItem.filter({ user_id: user.id, product_id: productId }).catch(() => []);
 
-        if (upsertErr) throw upsertErr;
-
-        if (created) {
-          // Update local state with real ID returned by upsert
+        if (existing && existing.length > 0) {
+          // Update existing item
+          const updated = await CartItem.update(existing[0].id, { quantity: targetQty });
+          setCartItems(prev => prev.map(item =>
+            item.product_id === productId
+              ? { ...item, id: updated.id, quantity: targetQty }
+              : item
+          ));
+        } else {
+          // Create new item
+          const created = await CartItem.create({ product_id: productId, user_id: user.id, quantity: targetQty });
           setCartItems(prev => prev.map(item =>
             item.product_id === productId
               ? { ...item, id: created.id, quantity: targetQty }
@@ -654,7 +661,7 @@ export default function Shop() {
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-7xl mx-auto space-y-8 pb-tab-bar page-enter">
+      <div className="max-w-7xl mx-auto space-y-4 pb-tab-bar page-enter">
 
         {showHostelSelector && (
           <HostelSelector
@@ -664,8 +671,34 @@ export default function Shop() {
           />
         )}
 
-        <EnhancedShopHero />
+        {/* Header with delivery promise + address */}
+        <EnhancedShopHero
+          hostelName={user?.selected_hostel}
+          onChangeHostel={() => setShowHostelSelector(true)}
+        />
+
+        {/* Search — now with shop-customized filter sheet */}
+        <EnhancedSearch
+          products={products}
+          onSearch={setSearchQuery}
+          filters={filters}
+          onFilterChange={setFilters}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+        />
+
+        {/* Promo banners — right below search, admin-managed */}
         <BannerCarousel />
+
+        {/* Category pills */}
+        <CategoryFilter
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+        />
 
         <ComboSection onAddComboToCart={async (combo) => {
           if (!user) { await base44.auth.redirectToLogin(); return; }
@@ -679,42 +712,6 @@ export default function Shop() {
           loadCartItems(user.id);
         }} />
 
-        {user?.selected_hostel && (
-          <div className="flex items-center justify-between bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-600">Delivering to</p>
-                <p className="text-sm font-semibold text-gray-900">{user.selected_hostel} Hostel</p>
-              </div>
-            </div>
-            <Button
-              variant="outline" size="sm"
-              onClick={() => setShowHostelSelector(true)}
-              className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 rounded-full px-4"
-            >
-              Change
-            </Button>
-          </div>
-        )}
-
-        <EnhancedSearch
-          products={products}
-          onSearch={setSearchQuery}
-          filters={filters}
-          onFilterChange={setFilters}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-        />
-
-        <CategoryFilter
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-        />
-
         {!isFiltered && user && (
           <RecommendationEngine
             user={user}
@@ -727,13 +724,13 @@ export default function Shop() {
 
         {/* ── Loading skeleton ── */}
         {isLoading ? (
-          <div className="space-y-10">
+          <div className="space-y-6">
             {Array(3).fill(0).map((_, i) => (
-              <div key={i} className="space-y-4">
-                <Skeleton className="h-10 w-64 mb-6 rounded-xl" />
-                <div className="flex gap-4">
+              <div key={i} className="space-y-3">
+                <Skeleton className="h-6 w-48 mb-3 rounded-lg" />
+                <div className="flex gap-2.5">
                   {Array(5).fill(0).map((_, j) => (
-                    <Skeleton key={j} className="h-56 w-40 flex-shrink-0 rounded-2xl" />
+                    <Skeleton key={j} className="h-52 w-[132px] flex-shrink-0 rounded-xl" />
                   ))}
                 </div>
               </div>
@@ -790,7 +787,7 @@ export default function Shop() {
 
         /* ── Category sections (default view) ── */
         ) : (
-          <div className="space-y-12">
+          <div className="space-y-6">
             {categories
               .filter(cat => (categorizedProducts[cat.id] || []).length > 0)
               .map(cat => (
@@ -808,7 +805,9 @@ export default function Shop() {
           </div>
         )}
 
-        {user && cartItems.length > 0 && <QuickAddToCart cartItems={cartItems} />}
+        {user && <CartPopup />}
+        {/* Promo popup — mobile only, admin-managed, CollegeCart green theme */}
+        <PromoPopup />
       </div>
     </div>
   );

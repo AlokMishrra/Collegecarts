@@ -5,8 +5,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, Loader2 } from "lucide-react";
 import { UploadFile } from "@/api/integrations";
+import { toast } from "sonner";
 
-export default function ImageUploader({ onImageSelect, currentImage, placeholder }) {
+export default function ImageUploader({ onImageSelect, onImageUploaded, onImageSelected, currentImage, placeholder }) {
+  // Support all prop names used across the app (BannerManagement uses onImageUploaded)
+  const notify = onImageSelect || onImageUploaded || onImageSelected;
   const [isUploading, setIsUploading] = useState(false);
   const [urlInput, setUrlInput] = useState(currentImage || "");
   const [previewImage, setPreviewImage] = useState(currentImage || "");
@@ -19,25 +22,46 @@ export default function ImageUploader({ onImageSelect, currentImage, placeholder
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Image too large (max 8MB) — please compress or choose a smaller file.");
+      return;
+    }
 
     setIsUploading(true);
     try {
-      const { file_url } = await UploadFile({ file });
-      onImageSelect(file_url);
-      setUrlInput(file_url);
-      setPreviewImage(file_url);
+      const res = await UploadFile({ file });
+      const url = res?.file_url || res?.url;
+      if (!url) throw new Error("No URL returned");
+      if (url.startsWith("data:")) {
+        toast.error("Upload used data URL (bloats DB) — create 'uploads' bucket in Supabase Storage instead. Image not saved.");
+        return;
+      }
+      if (typeof notify === 'function') notify(url);
+      else console.warn('ImageUploader: no handler provided for uploaded URL');
+      setUrlInput(url);
+      setPreviewImage(url);
+      toast.success("Image uploaded");
     } catch (error) {
       console.error("Error uploading file:", error);
+      const msg = error?.message || "";
+      if (msg.toLowerCase().includes("bucket")) {
+        toast.error(msg, { duration: 6000 });
+      } else {
+        toast.error("Upload failed: " + msg);
+      }
     }
     setIsUploading(false);
   };
 
   const handleUrlSubmit = () => {
     const trimmedUrl = urlInput.trim();
-    if (trimmedUrl) {
-      onImageSelect(trimmedUrl);
-      setPreviewImage(trimmedUrl);
+    if (!trimmedUrl) return;
+    if (trimmedUrl.startsWith("data:") && trimmedUrl.length > 5000) {
+      toast.error("Data URLs bloat the database — please upload via 'Upload File' after creating the 'uploads' bucket, or paste a https:// URL.");
+      return;
     }
+    if (typeof notify === 'function') notify(trimmedUrl);
+    setPreviewImage(trimmedUrl);
   };
 
   const handleUrlKeyPress = (e) => {

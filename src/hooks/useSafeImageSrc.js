@@ -33,15 +33,26 @@ function probeUrl(url) {
   });
 }
 
+const BAD_DOMAINS = ['mydukaan.io'];
+
 export function useSafeImageSrc(src) {
   const [status, setStatus] = useState(() => {
     if (!src) return 'bad';
+    if (BAD_DOMAINS.some(d => src.includes(d))) {
+      _urlCache.set(src, 'bad');
+      return 'bad';
+    }
     return _urlCache.get(src) ?? 'probing';
   });
   const currentSrc = useRef(src);
 
   useEffect(() => {
     if (!src) { setStatus('bad'); return; }
+    if (BAD_DOMAINS.some(d => src.includes(d))) {
+      _urlCache.set(src, 'bad');
+      setStatus('bad');
+      return;
+    }
     currentSrc.current = src;
 
     const cached = _urlCache.get(src);

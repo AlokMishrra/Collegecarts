@@ -16,6 +16,7 @@ import NotificationPreferences from "../components/shared/NotificationPreference
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useDialog } from "@/components/ui/alert-dialog-custom";
+import { HoldToDeleteButton } from "@/components/ui/HoldToDeleteButton";
 
 export default function Profile() {
   const { confirm } = useDialog();
@@ -136,6 +137,8 @@ export default function Profile() {
 
     try {
       await base44.auth.updateMe(profileForm);
+      User.clearCache();
+      window.dispatchEvent(new Event('profileUpdated'));
       await base44.entities.Notification.create({
         user_id: user.id,
         title: "Profile Updated",
@@ -157,6 +160,8 @@ export default function Profile() {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setProfileForm({ ...profileForm, profile_photo: file_url });
+      User.clearCache();
+      window.dispatchEvent(new Event('profileUpdated'));
       await base44.entities.Notification.create({
         user_id: user.id,
         title: "Photo Uploaded",
@@ -260,26 +265,8 @@ export default function Profile() {
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = await confirm(
-      "Are you absolutely sure you want to delete your account? This action cannot be undone. All your data including orders, wishlist, and loyalty points will be permanently deleted.",
-      "Delete Account"
-    );
-    
-    if (!confirmed) return;
-
-    // Second confirmation for critical action
-    const doubleConfirmed = await confirm(
-      "This is your final warning. Type 'DELETE' to confirm account deletion.",
-      "Final Confirmation"
-    );
-
-    if (!doubleConfirmed) return;
-
     try {
-      // Delete user data
       await base44.auth.deleteMe();
-      
-      // Redirect to login
       await base44.auth.redirectToLogin();
     } catch (error) {
       console.error("Error deleting account:", error);
@@ -504,14 +491,13 @@ export default function Profile() {
                     <span>All other account data</span>
                   </li>
                 </ul>
-                <Button
-                  onClick={handleDeleteAccount}
-                  variant="destructive"
-                  className="w-full bg-red-600 hover:bg-red-700 select-none"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete My Account
-                </Button>
+                <HoldToDeleteButton
+                  label="Hold to delete account"
+                  doneLabel="Account deleted"
+                  holdMs={1100}
+                  onHoldComplete={handleDeleteAccount}
+                  className="w-full"
+                />
               </div>
             </CardContent>
           </Card>

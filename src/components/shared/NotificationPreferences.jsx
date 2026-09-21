@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { User } from "@/entities/User";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
+import StyledSwitch from "@/components/ui/StyledSwitch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Bell, Check } from "lucide-react";
@@ -68,7 +68,7 @@ export default function NotificationPreferences() {
                 Get notified about order confirmations, delivery status
               </p>
             </div>
-            <Switch
+            <StyledSwitch
               id="order_updates"
               checked={preferences.order_updates}
               onCheckedChange={(checked) => updatePreference("order_updates", checked)}
@@ -82,7 +82,7 @@ export default function NotificationPreferences() {
                 Receive updates about special offers and discounts
               </p>
             </div>
-            <Switch
+            <StyledSwitch
               id="promotions"
               checked={preferences.promotions}
               onCheckedChange={(checked) => updatePreference("promotions", checked)}
@@ -96,7 +96,7 @@ export default function NotificationPreferences() {
                 Notifications for points earned and milestones achieved
               </p>
             </div>
-            <Switch
+            <StyledSwitch
               id="loyalty_milestones"
               checked={preferences.loyalty_milestones}
               onCheckedChange={(checked) => updatePreference("loyalty_milestones", checked)}
@@ -110,7 +110,7 @@ export default function NotificationPreferences() {
                 Be the first to know about new arrivals
               </p>
             </div>
-            <Switch
+            <StyledSwitch
               id="new_products"
               checked={preferences.new_products}
               onCheckedChange={(checked) => updatePreference("new_products", checked)}
@@ -124,7 +124,7 @@ export default function NotificationPreferences() {
                 Get alerted when products you viewed go on sale
               </p>
             </div>
-            <Switch
+            <StyledSwitch
               id="price_drops"
               checked={preferences.price_drops}
               onCheckedChange={(checked) => updatePreference("price_drops", checked)}

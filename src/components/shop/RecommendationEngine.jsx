@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles, Loader2 } from "lucide-react";
 import { enrichProductsWithHostelStock } from "@/utils/hostelStockHelper";
-import ProductCard from "./ProductCard";
+import CompactProductCard from "./CompactProductCard";
 
 export default function RecommendationEngine({ user, onAddToCart, getCartQuantity, onUpdateQuantity, context = "shop" }) {
   const [recommendations, setRecommendations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState(null);
-  const [imageLoaded, setImageLoaded] = useState({});
 
   useEffect(() => {
     if (user) {
@@ -252,137 +250,40 @@ Return ONLY a JSON array of product names: ["Product Name 1", "Product Name 2", 
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-emerald-600" />
-        <h2 className="text-xl font-bold text-gray-900">
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 px-0.5">
+        <Sparkles className="w-4 h-4 text-[#0c831f]" />
+        <h2 className="text-[15px] font-bold text-gray-900">
           {context === "checkout" ? "You May Also Like" : "Recommended For You"}
         </h2>
         {settings?.strategy === "ai_powered" && (
-          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">AI Powered</span>
+          <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">AI Powered</span>
         )}
       </div>
       
-      <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
-        <CardContent className="p-4">
-          <p className="text-sm text-gray-600 mb-4">
-            {settings?.strategy === "ai_powered" 
-              ? "Personalized by AI based on your preferences and shopping patterns"
-              : "Based on your preferences and purchase history"}
-          </p>
-          <div className="relative -mx-2">
-            <div className="flex gap-3 overflow-x-auto pb-4 px-2 scrollbar-hide snap-x snap-mandatory items-start">
-              {recommendations.map((product, index) => {
-                const cartQuantity = getCartQuantity ? getCartQuantity(product.id) : 0;
-                const isInStock = (product.hostel_stock_quantity !== undefined ? product.hostel_stock_quantity : product.stock_quantity) > 0 || cartQuantity > 0;
-                
-                return (
-                  <div key={product.id} className="flex-shrink-0 w-[140px] snap-start">
-                    <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300 border border-gray-200 bg-white rounded-xl flex flex-col h-[220px]">
-                      <div className="relative overflow-hidden bg-white p-2 flex-shrink-0">
-                        {/* Free Delivery Badge */}
-                        <div className="absolute top-1 left-1 bg-emerald-500 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1 z-10">
-                          <span>Free Delivery</span>
-                          <span className="text-[8px]">⏱ {product.delivery_time || '10 mins'}</span>
-                        </div>
-                        
-                        {/* Product Image */}
-                        {!imageLoaded[product.id] && (
-                          <div className="w-full h-20 bg-gray-200 skeleton animate-pulse rounded" />
-                        )}
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          loading="lazy"
-                          onLoad={() => setImageLoaded(prev => ({ ...prev, [product.id]: true }))}
-                          className={`w-full h-20 object-contain transition-all duration-500 ${
-                            imageLoaded[product.id] ? 'opacity-100' : 'opacity-0'
-                          }`}
-                          style={{ transition: 'opacity 200ms ease-in' }}
-                        />
-                        
-                        {/* Out of Stock Overlay */}
-                        {!isInStock && (
-                          <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center">
-                            <span className="bg-red-500 text-white text-[10px] px-2 py-1 rounded font-semibold">
-                              OUT OF STOCK
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <CardContent className="p-2 flex flex-col flex-1 justify-between">
-                        <div className="flex-shrink-0">
-                          <h3 className="font-semibold text-xs mb-0.5 line-clamp-1 text-gray-900 leading-tight h-4">
-                            {product.name}
-                          </h3>
-                          <p className="text-[10px] text-gray-500 mb-1.5 h-3">{product.unit || '100'}</p>
-                          
-                          <div className="flex items-baseline gap-1 mb-2 h-5">
-                            <span className="text-base font-bold text-gray-900">₹{product.price}</span>
-                            {product.original_price && product.original_price > product.price && (
-                              <span className="text-[10px] text-gray-400 line-through">₹{product.original_price}</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex-shrink-0">
-                          {!isInStock ? (
-                            <button
-                              disabled
-                              className="w-full bg-gray-300 text-gray-500 text-xs font-semibold py-1.5 rounded-lg cursor-not-allowed"
-                            >
-                              OUT OF STOCK
-                            </button>
-                          ) : cartQuantity > 0 ? (
-                            <div className="flex items-center gap-1 bg-emerald-50 rounded-lg p-0.5">
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  if (onUpdateQuantity) {
-                                    onUpdateQuantity(product, -1);
-                                  }
-                                }}
-                                className="flex-1 hover:bg-emerald-100 rounded text-emerald-700 font-bold text-sm py-1"
-                              >
-                                −
-                              </button>
-                              <span className="font-bold text-emerald-700 text-xs min-w-[1.5rem] text-center">{cartQuantity}</span>
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  if (onUpdateQuantity) {
-                                    onUpdateQuantity(product, 1);
-                                  } else {
-                                    onAddToCart(product);
-                                  }
-                                }}
-                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 rounded text-white font-bold text-sm py-1"
-                              >
-                                +
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                onAddToCart(product);
-                              }}
-                              className="w-full bg-white hover:bg-emerald-50 border-2 border-emerald-600 text-emerald-600 text-xs font-semibold py-1.5 rounded-lg transition-all"
-                            >
-                              ADD
-                            </button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="relative -mx-1">
+        <div className="flex gap-2.5 overflow-x-auto pb-3 px-1 scrollbar-hide snap-x snap-mandatory items-stretch product-scroll">
+          {recommendations.map((product) => {
+            const cartQuantity = getCartQuantity ? getCartQuantity(product.id) : 0;
+            const stock = product.hostel_stock_quantity !== undefined ? product.hostel_stock_quantity : product.stock_quantity;
+            const isInStock = (stock || 0) > 0 || cartQuantity > 0;
+            const isMaxStock = cartQuantity >= (stock || 0);
+            
+            return (
+              <div key={product.id} className="flex-shrink-0 w-[132px] snap-start">
+                <CompactProductCard
+                  product={product}
+                  cartQty={cartQuantity}
+                  onAddToCart={onAddToCart}
+                  onUpdateQuantity={onUpdateQuantity}
+                  inStock={isInStock}
+                  maxReached={isMaxStock}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

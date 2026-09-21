@@ -38,6 +38,7 @@ import ProductManagement from "../components/admin/ProductManagement";
   import CustomQRGenerator from "../components/admin/CustomQRGenerator";
   import DeliveryPerformance from "../components/admin/DeliveryPerformance";
   import BannerManagement from "../components/admin/BannerManagement";
+  import PromoPopupManagement from "../components/admin/PromoPopupManagement";
   import DhabaMenuManagement from "../components/admin/DhabaMenuManagement";
   import ActivityLog from "../components/admin/ActivityLog";
   import DailyProfitCalculator from "../components/admin/DailyProfitCalculator";
@@ -338,6 +339,7 @@ export default function CCA() {
     { value: "dynamic-pricing", label: "Dynamic Pricing", permission: "manage_products", component: <DynamicPricing /> },
     { value: "categories", label: "Categories", permission: "manage_categories", component: <CategoryManagement /> },
     { value: "banners", label: "Banners", permission: "manage_settings", component: <BannerManagement /> },
+    { value: "promo-popup", label: "Promo Popup", permission: "manage_settings", component: <PromoPopupManagement /> },
     { value: "dhaba-menu", label: "Dhaba Menu", permission: "manage_products", component: <DhabaMenuManagement /> },
     { value: "campaigns", label: "Campaigns", permission: "manage_campaigns", component: <CampaignManagement /> },
     { value: "recommendations", label: "AI Recommendations", permission: "manage_settings", component: <RecommendationConfig /> },

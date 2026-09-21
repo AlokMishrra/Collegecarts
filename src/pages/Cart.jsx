@@ -8,6 +8,7 @@ import { base44 } from "@/api/base44Client";
   import { DeliveryPerson } from "@/entities/DeliveryPerson";
 import { supabase } from "@/lib/supabase";
 import { notifyCartUpdate } from "@/utils/cartEvents";
+import SwipeToPay from "@/components/cart/SwipeToPay";
 import { Trash2, Plus, Minus, ShoppingBag } from "lucide-react";
 import DeliveryProgressBar from "../components/cart/DeliveryProgressBar";
 import RecommendedProducts from "../components/cart/RecommendedProducts";
@@ -1280,7 +1281,12 @@ export default function Cart() {
           // Parallel operations that can happen simultaneously
           await Promise.all([
             // Clear cart items
-            ...cartItems.map(item => CartItem.delete(item.id)),
+            ...cartItems.map(item => CartItem.delete(item.id).catch(()=>{})),
+          ]);
+          // Notify cart cleared (ensures popup hidden even if optimistic missed)
+          try { window.dispatchEvent(new Event('cartUpdated')); } catch {}
+          try { notifyCartUpdate(); } catch {}
+          await Promise.all([
             
             // Update user info
             User.updateMyUserData({
@@ -1390,7 +1396,7 @@ export default function Cart() {
         }
       };
 
-      // ⚡ STEP 9: Show immediate success feedback (don't wait for post-order operations)
+      // ⚡ STEP 9: Show immediate success feedback + clear cart instantly (fixes View cart popup still showing)
       const notificationTitle = isScheduledOrder 
         ? "Order Scheduled Successfully!" 
         : "Order Placed Successfully!";
@@ -1401,6 +1407,11 @@ export default function Cart() {
 
       toast.success(notificationTitle, { description: notificationMessage, duration: 5000, id: 'order-processing' });
       
+      // Optimistic cart clear — hide View cart popup instantly before deletes complete
+      setCartItems([]);
+      try { window.dispatchEvent(new Event('cartUpdated')); } catch {}
+      try { notifyCartUpdate(); } catch {}
+
       // Navigate immediately (better UX)
       navigate(createPageUrl('Orders'));
       
@@ -2084,6 +2095,7 @@ export default function Cart() {
                 </div>
               )}
               
+              {/* Desktop: tap */}
               <Button
                 onClick={() => {
                   if (paymentMethod === "razorpay") {
@@ -2093,7 +2105,7 @@ export default function Cart() {
                   }
                 }}
                 disabled={isPlacingOrder || cartItems.length === 0 || calculateSubtotal() === 0 || rateLimitCountdown > 0 || hasOutOfStockItems()}
-                className="w-full h-9 sm:h-10 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold transition-all duration-200 active:scale-95"
+                className="hidden lg:flex w-full h-9 sm:h-10 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-semibold transition-all duration-200 active:scale-95 items-center justify-center"
               >
                 {isPlacingOrder ? (
                   <span className="flex items-center gap-2">
@@ -2105,6 +2117,25 @@ export default function Cart() {
                   </span>
                 ) : hasOutOfStockItems() ? "Remove Out of Stock Items" : paymentMethod === "razorpay" ? "Continue to Pay" : "Place Order"}
               </Button>
+              {/* Mobile: swipe — exact style from reference */}
+              <div className="lg:hidden">
+                <SwipeToPay
+                  amount={calculateTotal().toFixed(0)}
+                  disabled={isPlacingOrder || cartItems.length === 0 || calculateSubtotal() === 0 || rateLimitCountdown > 0 || hasOutOfStockItems()}
+                  isLoading={isPlacingOrder}
+                  label={
+                    hasOutOfStockItems()
+                      ? "Remove out-of-stock items"
+                      : paymentMethod === "razorpay"
+                        ? `Swipe to pay ₹${calculateTotal().toFixed(0)}`
+                        : `Swipe to pay ₹${calculateTotal().toFixed(0)}`
+                  }
+                  onSwipe={() => {
+                    if (paymentMethod === "razorpay") handleRazorpayPayment();
+                    else placeOrder();
+                  }}
+                />
+              </div>
               
               {/* Retry message display */}
               {retryMessage && (

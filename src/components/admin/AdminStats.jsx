@@ -15,20 +15,39 @@ export default function AdminStats() {
   } } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
+      // Paginated fetch — bypasses 1000-row PostgREST max_rows (orders = 1292)
+      const { supabase } = await import('@/lib/supabase');
+      const fetchAllOrders = async () => {
+        const all = [];
+        let from = 0;
+        const size = 1000;
+        while (true) {
+          const { data, error } = await supabase.from('orders').select('id,status,total_amount,created_at').range(from, from + size - 1);
+          if (error) throw error;
+          all.push(...(data || []));
+          if (!data || data.length < size) break;
+          from += size;
+        }
+        return all;
+      };
       const [products, orders, deliveryPersons] = await Promise.all([
         Product.list(),
-        Order.list(),
+        fetchAllOrders(),
         DeliveryPerson.list()
       ]);
 
-      // Calculate total revenue from delivered orders only, minus 65 Rs
-      const totalRevenue = Math.max(0, orders
-        .filter(order => order.status === "delivered")
-        .reduce((sum, order) => sum + (parseFloat(order.total_amount) || 0), 0) - 65);
+      // Till 21 Sep 2026 IST: delivered only, exclude cancelled (previous + 19 Aug–21 Sep)
+      const till21Sep = new Date('2026-09-21T23:59:59+05:30');
+      const deliveredTill21Sep = orders.filter(o => {
+        if (!o.created_at) return false;
+        const d = new Date(o.created_at);
+        return o.status === 'delivered' && o.status !== 'cancelled' && d <= till21Sep;
+      });
+      const totalRevenue = deliveredTill21Sep.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
       return {
         totalProducts: products.length,
-        totalOrders: orders.length,
+        totalOrders: deliveredTill21Sep.length,
         totalDeliveryPersons: deliveryPersons.length,
         totalRevenue
       };

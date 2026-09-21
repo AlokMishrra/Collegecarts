@@ -21,7 +21,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storageKey: 'sb-collegecart-auth',
     detectSessionInUrl: true,
     flowType: 'pkce',
-    lock: false,
   },
   realtime: {
     params: { 
