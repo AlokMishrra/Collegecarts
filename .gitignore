@@ -21,6 +21,12 @@ scripts/*.mjs
 scripts/run-schema.mjs
 scripts/apply-schema.ps1
 
+# ...but these two are part of the build/toolchain and contain no credentials.
+# scripts/gen-route-htmls.mjs is REQUIRED: `npm run build` runs it, so if it is
+# not committed a fresh clone (Vercel, CI, another machine) fails to build.
+!scripts/gen-route-htmls.mjs
+!scripts/gen-seo-images.mjs
+
 # User data exports
 *.csv
 users_export_*.csv
@@ -86,3 +92,42 @@ whatsapp_flow_private.pem
 
 # Local database backups — contain real partner names and earnings. Never commit.
 supabase/backups/
+
+# ============================================================
+# Keys, certificates and service credentials — never commit
+# ============================================================
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+service-account*.json
+*service_role*
+*service-role*
+credentials.json
+secrets.json
+supabase/.branches
+supabase/.temp
+
+# ============================================================
+# Test / coverage / build artefacts
+# ============================================================
+coverage
+.nyc_output
+.eslintcache
+*.tsbuildinfo
+.cache
+tmp
+temp
+*.bak
+*.orig
+*.rej
+
+# ============================================================
+# Local database exports and generated data
+# ============================================================
+supabase/backups/
+supabase/*.dump
+supabase/*.sql.gz
+*.dump
