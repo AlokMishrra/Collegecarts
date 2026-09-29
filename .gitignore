@@ -83,3 +83,6 @@ ADD_CASHFREE_SECRETS.md
 docs/COMPLETE_DOCUMENTATION.md
 .env*.local
 whatsapp_flow_private.pem
+
+# Local database backups — contain real partner names and earnings. Never commit.
+supabase/backups/

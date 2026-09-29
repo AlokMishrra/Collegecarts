@@ -351,7 +351,7 @@ export default function Meals() {
         {/* Thali image on right */}
         <img 
           src="https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300&h=200&fit=crop"
-          alt="Indian Thali"
+          alt="Indian thali meal with curries, rice and roti"
           className="absolute right-0 bottom-0 w-[45%] h-full object-cover opacity-90 rounded-l-3xl"
         />
         {/* Decorative overlay */}

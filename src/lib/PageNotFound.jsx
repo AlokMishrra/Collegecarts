@@ -1,11 +1,21 @@
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { useSEO } from './useSEO';
 
 
 export default function PageNotFound({}) {
     const location = useLocation();
     const pageName = location.pathname.substring(1);
     const { user, isAuthenticated } = useAuth();
+
+    // A not-found route must never be indexed. It also has to be crawlable
+    // (robots.txt does NOT block it) so crawlers can read this directive.
+    useSEO({
+        title: "Page not found",
+        description: "This page does not exist on CollegeCart.",
+        url: location.pathname,
+        noindex: true,
+    });
     
     return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">

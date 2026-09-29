@@ -418,7 +418,7 @@ Please provide more details!`;
               <div className="w-full h-full flex items-center justify-center bg-white rounded-full p-2 relative">
                 <img 
                   src={BOT_ICON_URL} 
-                  alt="AI Assistant" 
+                  alt="CollegeCart AI assistant chatbot avatar" 
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.style.display = 'none';
@@ -452,7 +452,7 @@ Please provide more details!`;
                     <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center flex-shrink-0 relative overflow-hidden p-0.5">
                       <img 
                         src={BOT_ICON_URL} 
-                        alt="AI Bot" 
+                        alt="CollegeCart AI assistant avatar" 
                         className="w-full h-full object-cover rounded-full"
                         onError={(e) => {
                           // Fallback to SVG icon if image fails to load
@@ -502,7 +502,7 @@ Please provide more details!`;
                           <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden border border-emerald-200 p-0.5">
                             <img 
                               src={BOT_ICON_URL} 
-                              alt="AI Bot" 
+                              alt="CollegeCart AI assistant avatar" 
                               className="w-full h-full object-cover rounded-full"
                               onError={(e) => {
                                 e.target.src = FALLBACK_ICON;
@@ -615,7 +615,7 @@ Please provide more details!`;
                       <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center overflow-hidden border border-emerald-200 p-0.5">
                         <img 
                           src={BOT_ICON_URL} 
-                          alt="AI Bot" 
+                          alt="CollegeCart AI assistant avatar" 
                           className="w-full h-full object-cover rounded-full"
                           onError={(e) => {
                             e.target.src = FALLBACK_ICON;

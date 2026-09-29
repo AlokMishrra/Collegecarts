@@ -4,6 +4,8 @@ import { Search } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { createPageUrl } from "@/utils";
 import { useSafeImageSrc } from "@/hooks/useSafeImageSrc";
+import { useSEO } from "@/lib/useSEO";
+import { ROUTE_META } from "@/route-meta";
 
 const PASTELS = ["#e0f2fe", "#fef9c3", "#dcfce7", "#fce7f3", "#ede9fe", "#ffedd5"];
 
@@ -118,6 +120,7 @@ function SquareCard({ category, onClick }) {
 }
 
 export default function Categories() {
+  useSEO(ROUTE_META["/Categories"]);
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -224,6 +227,16 @@ export default function Categories() {
         </button>
       </div>
 
+      {/* Intro copy */}
+      <div className="px-4 pb-1">
+        <p className="text-[13px] leading-relaxed text-gray-600">
+          Every product on CollegeCart is grouped so you can find it in a few taps. Browse the sections below to move from daily groceries and fresh items to snacks, drinks and store favourites, then tap any card to open the full category, check live stock, and add items to your cart for delivery straight to your hostel door.
+        </p>
+        <p className="text-[13px] leading-relaxed text-gray-600 mt-2">
+          Use the search button at the top right when you already know what you want — it jumps straight to the product list. Otherwise work through the sections in order: fresh and everyday groceries first, snacks and drinks next, then anything from More Categories last, so the essentials land in your cart before the treats and the impulse buys.
+        </p>
+      </div>
+
       {groups.map((group) => (
         <div key={group.title} className="mt-6">
           <h2 className="text-[15px] md:text-[16px] font-bold text-gray-900 px-4 mb-3">{group.title}</h2>
@@ -244,6 +257,49 @@ export default function Categories() {
           )}
         </div>
       ))}
+
+      {/* Per-group descriptions */}
+      <section className="px-4 mt-9">
+        <h2 className="text-[15px] md:text-[16px] font-bold text-gray-900 mb-3">What You'll Find in Each Section</h2>
+
+        <h3 className="text-[13px] font-bold text-[#0c831f] mb-1">Shop by Store</h3>
+        <p className="text-[13px] leading-relaxed text-gray-600 mb-3">
+          Curated bundles and store-branded packs such as BetterBite, Snacks &amp; Chips, Treats Corner and Extra Essentials collect the most-ordered hostel favourites in one row, so a full evening snack run takes a single tap.
+        </p>
+
+        <h3 className="text-[13px] font-bold text-[#0c831f] mb-1">Fresh items</h3>
+        <p className="text-[13px] leading-relaxed text-gray-600 mb-3">
+          Quick options like beverages, biryani, burgers and chaat for the hours when the mess is closed or you simply want something different in the middle of a study session.
+        </p>
+
+        <h3 className="text-[13px] font-bold text-[#0c831f] mb-1">Grocery &amp; Kitchen</h3>
+        <p className="text-[13px] leading-relaxed text-gray-600 mb-3">
+          The backbone of the list: vegetables and fruits, atta, rice and dal, oil, ghee and masala, dairy with bread and eggs, bakery and biscuits, dry fruits and cereals, chicken, meat and fish, plus kitchenware and ready sides such as roti, paratha, raita, pulao and sandwich.
+        </p>
+
+        <h3 className="text-[13px] font-bold text-[#0c831f] mb-1">Snacks &amp; Drinks</h3>
+        <p className="text-[13px] leading-relaxed text-gray-600 mb-3">
+          Chips and namkeen, sweets and chocolates, cold drinks and juices, tea and coffee, milk drinks, noodles and instant food, alongside personal and feminine care essentials that hostel rooms regularly run out of.
+        </p>
+
+        <h3 className="text-[13px] font-bold text-[#0c831f] mb-1">More Categories</h3>
+        <p className="text-[13px] leading-relaxed text-gray-600 mb-1">
+          Anything outside the four main groups lives here — stationery, medicines and the small household items that are easy to forget until you need them.
+        </p>
+      </section>
+
+      {/* Delivery & pricing */}
+      <section className="mx-4 mt-6 mb-4 bg-[#FFFBF5] border border-emerald-200 rounded-2xl p-5">
+        <h2 className="text-[15px] md:text-[16px] font-bold text-[#0c831f] mb-2">Delivery and Pricing</h2>
+        <p className="text-[13px] leading-relaxed text-gray-700 mb-3">
+          Categories only help if the items are actually in stock. Every category is filled from our own dark store near campus, restocked daily, and priced at MRP or below it. There is no minimum order, so a single pack of biscuits counts as a complete order, and delivery to your hostel door is free above ₹500 — a ₹10–₹20 fee applies on smaller orders depending on your hostel location.
+        </p>
+        <ul className="list-disc pl-5 text-[13px] leading-relaxed text-gray-700 space-y-1">
+          <li>Most orders arrive at the hostel door in about 10 minutes.</li>
+          <li>Stock and prices update live as inventory moves through the dark store.</li>
+          <li>Missing, damaged or wrong items are refunded to the original payment method.</li>
+        </ul>
+      </section>
 
       {categories.length === 0 && (
         <div className="text-center py-16 text-gray-500 text-sm">No categories found</div>

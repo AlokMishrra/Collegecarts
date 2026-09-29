@@ -6,18 +6,19 @@ import { User } from "@/entities/User";
 import { Notification } from "@/entities/Notification";
 import { base44 } from "@/api/base44Client";
 import { notifyCartUpdate } from "@/utils/cartEvents";
-import { getProductHostelStock } from "@/utils/hostelStockHelper";
-import { ArrowLeft, ShoppingCart, Plus, Minus, Star, Heart } from "lucide-react";
+import { getProductHostelStock, getDisplayStock } from "@/utils/hostelStockHelper";
+import { ArrowLeft, ShoppingCart, Plus, Minus, Star, Heart, ChevronRight } from "lucide-react";
 import ReviewSection from "../components/product/ReviewSection";
 import RecommendationEngine from "../components/shop/RecommendationEngine";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { FALLBACK_IMG } from "@/components/ui/product-image";
 import { useSafeImageSrc } from "@/hooks/useSafeImageSrc";
+import { useSEO, setJsonLd, removeJsonLd, assetUrl, SITE_ORIGIN } from "@/lib/useSEO";
 
 function ProductDetailImage({ src, alt, className }) {
   const safeSrc = useSafeImageSrc(src);
@@ -58,6 +59,136 @@ export default function ProductDetails() {
     }
   }, [user?.selected_hostel]);
 
+  // ── SEO: unique title/description + Product/Offer JSON-LD per item ──────
+  // Money pages must never inherit the homepage title, and product markup is
+  // what makes price/availability eligible for rich results.
+  useEffect(() => {
+    if (!product) return;
+
+    const name = product.name || "Product";
+    const categoryName = category?.name || product.category_name || "Groceries";
+    const body = String(product.description || "").trim();
+    const shortBody = body
+      ? (body.length > 155 ? `${body.slice(0, 152).trimEnd()}...` : body)
+      : null;
+    const description =
+      shortBody ||
+      `${name} from CollegeCart's ${categoryName.toLowerCase()} range. Order online with about 10-minute delivery to your hostel room at student-friendly prices.`;
+
+    useSEO({
+      title: `${name} — ${categoryName}`,
+      description,
+      type: "product",
+    });
+
+    const price = Number(product.price) || 0;
+    const mrp = Number(product.original_price) || 0;
+    const stock = Number(product.hostel_stock_quantity ?? product.stock_quantity ?? 0);
+    const inStock = stock > 0;
+    const image = assetUrl(product.image_url) || undefined;
+    const url = `${SITE_ORIGIN}/ProductDetails?id=${encodeURIComponent(product.id)}`;
+
+    const offer = {
+      "@type": "Offer",
+      url,
+      priceCurrency: "INR",
+      ...(price > 0 ? { price: price.toFixed(2) } : {}),
+      ...(price > 0 && mrp > price ? { highPrice: mrp.toFixed(2) } : {}),
+      availability: inStock
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+      seller: { "@id": `${SITE_ORIGIN}/#organization` },
+      // Grounded in the Refunds & Cancellations policy: 7-day refund window,
+      // refunded to the original payment method, raised via support or in
+      // store. Free returns on missing, damaged or incorrect items.
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "IN",
+        returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+        merchantReturnDays: 7,
+        returnMethod: "https://schema.org/ReturnInStore",
+        returnFees: "https://schema.org/FreeReturn",
+        merchantReturnLink: `${SITE_ORIGIN}/RefundsCancellations`,
+      },
+      // Base delivery charge is ₹5 per item (free above the store threshold);
+      // packing starts immediately and the handover takes minutes, not days.
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          value: 5,
+          currency: "INR",
+        },
+        shippingDestination: {
+          "@type": "DefinedRegion",
+          addressCountry: "IN",
+        },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: {
+            "@type": "QuantitativeValue",
+            minValue: 0,
+            maxValue: 0,
+            unitCode: "DAY",
+          },
+          transitTime: {
+            "@type": "QuantitativeValue",
+            minValue: 0,
+            maxValue: 1,
+            unitCode: "DAY",
+          },
+        },
+      },
+    };
+
+    const nodes = [
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name,
+        description,
+        ...(image ? { image: [image] } : {}),
+        sku: String(product.id ?? ""),
+        brand: { "@type": "Brand", name: "CollegeCart" },
+        category: categoryName,
+        ...(averageRating > 0 && reviewCount > 0
+          ? {
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: Number(averageRating).toFixed(1),
+                reviewCount: String(reviewCount),
+                bestRating: "5",
+                worstRating: "1",
+              },
+            }
+          : {}),
+        offers: offer,
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_ORIGIN}/` },
+          { "@type": "ListItem", position: 2, name: "Shop", item: `${SITE_ORIGIN}/Shop` },
+          ...(category?.name
+            ? [{
+                "@type": "ListItem",
+                position: 3,
+                name: category.name,
+                item: `${SITE_ORIGIN}/CategoryProducts?categoryId=${encodeURIComponent(product.category_id || "")}&categoryName=${encodeURIComponent(category.name)}`,
+              }]
+            : []),
+          { "@type": "ListItem", position: category?.name ? 4 : 3, name },
+        ],
+      },
+    ];
+
+    setJsonLd("product-schema", nodes);
+
+    return () => removeJsonLd("product-schema");
+  }, [product, category, averageRating, reviewCount]);
+
   const isProductAvailableNow = (product) => {
     if (!product.available_from || !product.available_to) return true;
     
@@ -94,17 +225,8 @@ export default function ProductDetails() {
     }
   };
 
-  const getHostelStock = (product) => {
-    // Use enriched hostel stock if available
-    if (product.hostel_stock_quantity !== undefined) {
-      console.log('[getHostelStock] Using hostel_stock_quantity:', product.hostel_stock_quantity);
-      return product.hostel_stock_quantity;
-    }
-    
-    // Fallback to total stock
-    console.log('[getHostelStock] Fallback to stock_quantity:', product.stock_quantity);
-    return product.stock_quantity || 0;
-  };
+  const getHostelStock = (product) =>
+    getDisplayStock(product, user?.selected_hostel);
 
   const isProductInStock = (product) => {
     if (!isProductAvailableNow(product)) {
@@ -409,8 +531,35 @@ export default function ProductDetails() {
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
 
+  const crumbCategoryName = category?.name || product.category_name || "";
+  const crumbCategoryLink = crumbCategoryName
+    ? `/CategoryProducts?categoryId=${encodeURIComponent(product.category_id || "")}&categoryName=${encodeURIComponent(crumbCategoryName)}`
+    : "";
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-tab-bar">
+      {/* Breadcrumb: Home › Shop › Category › Product */}
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
+        <Link to="/" className="hover:text-[#0c831f] transition-colors">Home</Link>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
+        <Link to="/Shop" className="hover:text-[#0c831f] transition-colors">Shop</Link>
+        {crumbCategoryName && (
+          <>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
+            <Link
+              to={crumbCategoryLink}
+              className="hover:text-[#0c831f] transition-colors truncate max-w-[40vw]"
+            >
+              {crumbCategoryName}
+            </Link>
+          </>
+        )}
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
+        <span aria-current="page" className="text-[#0c831f] font-medium truncate max-w-[50vw]">
+          {product.name}
+        </span>
+      </nav>
+
       {/* Back Button */}
       <Button
         variant="outline"

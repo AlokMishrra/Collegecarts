@@ -418,7 +418,7 @@ export default function CreateEmployeeModal({ open, onClose, onSuccess }) {
                   onChange={handlePhotoUpload}
                 />
                 {formData.photo && (
-                  <img src={formData.photo} alt="Preview" className="mt-2 h-20 w-20 rounded-full object-cover" />
+                  <img src={formData.photo} alt="Preview of the selected employee photo" className="mt-2 h-20 w-20 rounded-full object-cover" />
                 )}
               </div>
             </div>

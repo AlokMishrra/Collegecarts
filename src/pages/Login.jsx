@@ -96,7 +96,7 @@ const Shell = ({ children, onBack }) => (
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
           <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-md mb-3 bg-white border border-gray-100">
-            <img src="/favicon.png" alt="CollegeCart" className="w-full h-full object-contain" />
+            <img src="/favicon.png" alt="CollegeCart logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">CollegeCart</h1>
           <p className="text-xs text-emerald-600 font-medium mt-0.5">Smart Shopping, Better Living</p>

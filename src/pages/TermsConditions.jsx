@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { useSEO } from "@/lib/useSEO";
+import { ROUTE_META } from "@/route-meta";
 
 const Section = ({ title, children }) => (
   <div className="mb-8">
@@ -10,11 +11,7 @@ const Section = ({ title, children }) => (
 
 export default function TermsConditions() {
   useEffect(() => {
-    useSEO({
-      title: "Terms & Conditions",
-      description: "Read CollegeCart's Terms & Conditions. By using our app you agree to these terms governing orders, payments, delivery, and use of our platform.",
-      url: "/terms",
-    });
+    useSEO(ROUTE_META["/TermsConditions"]);
   }, []);
 
   return (

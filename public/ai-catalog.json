@@ -1,0 +1,34 @@
+{
+  "@context": "https://schema.org",
+  "@type": "DataCatalog",
+  "name": "CollegeCart",
+  "url": "https://shop.collegecarts.in/",
+  "description": "Public pages describing CollegeCart, a 10-minute campus grocery delivery service in India.",
+  "publisher": {
+    "@type": "Organization",
+    "name": "CollegeCart",
+    "url": "https://shop.collegecarts.in/"
+  },
+  "dateCreated": "2026",
+  "inLanguage": "en",
+  "dataset": [
+    {
+      "@type": "Dataset",
+      "name": "About CollegeCart",
+      "url": "https://shop.collegecarts.in/AboutUs",
+      "description": "Company and founder background."
+    },
+    {
+      "@type": "Dataset",
+      "name": "CollegeCart policies",
+      "url": "https://shop.collegecarts.in/PrivacyPolicy",
+      "description": "Privacy, terms, refunds and cancellations."
+    },
+    {
+      "@type": "Dataset",
+      "name": "CollegeCart contact",
+      "url": "https://shop.collegecarts.in/ContactUs",
+      "description": "Phone, email and support hours."
+    }
+  ]
+}

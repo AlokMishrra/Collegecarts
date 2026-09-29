@@ -104,7 +104,7 @@ export default function CODPaymentCollector({ order, deliveryPerson, onPaymentSu
               <div className="bg-white p-3 rounded-lg inline-block border">
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=8521282690@okbizaxis%26pn=CollegeCart%26am=${order.total_amount.toFixed(2)}%26cu=INR%26tn=Order${order.order_number}`}
-                  alt="UPI QR"
+                  alt="UPI payment QR code for this order"
                   className="w-44 h-44"
                 />
               </div>

@@ -325,7 +325,7 @@ export default function Profile() {
                 {user?.profile_photo ? (
                   <img 
                     src={user.profile_photo} 
-                    alt="Profile" 
+                    alt="Profile photo of the signed-in user" 
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -837,7 +837,7 @@ export default function Profile() {
                   {profileForm.profile_photo ? (
                     <img 
                       src={profileForm.profile_photo} 
-                      alt="Profile" 
+                      alt="Preview of the selected profile photo" 
                       className="w-full h-full object-cover"
                     />
                   ) : (

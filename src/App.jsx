@@ -62,11 +62,24 @@ import TermsConditions from './pages/TermsConditions';
 import RefundsCancellations from './pages/RefundsCancellations';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import AboutUs from './pages/AboutUs';
+import Landing from './pages/Landing';
 import Meals from './pages/Meals';
 import ForgotPassword from './pages/ForgotPassword';
 
 import { NavigationProvider } from '@/navigation/NavigationProvider';
 import { ModuleLayout } from '@/navigation';
+import { RouteSentinel } from '@/lib/useSEO';
+
+// ── Public, crawlable routes ──────────────────────────────────────────────
+// Browsing (shop, categories, product detail) must work for anonymous
+// visitors: a login wall here hides the entire catalogue from crawlers and
+// from first-time users. Only transact/account surfaces stay behind auth.
+const PUBLIC_PAGES = new Set([
+  'Shop',
+  'Categories',
+  'CategoryProducts',
+  'ProductDetails',
+]);
 
 // Premium Loading skeleton component mimicking dynamic page layout elements
 const PageLoadingSkeleton = () => (
@@ -110,6 +123,39 @@ const LayoutWrapper = ({ children }) => (
   <ModuleLayout>{children}</ModuleLayout>
 );
 
+/**
+ * HomeRoute — the root URL does double duty.
+ * Anonymous visitors get a crawlable, content-rich landing page (this is the
+ * page that must rank and that AI crawlers read without JavaScript).
+ * Signed-in members land straight in the shop, exactly as before.
+ */
+const HomeRoute = () => {
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+
+  if (isLoadingAuth || isLoadingPublicSettings) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
+          <p className="text-sm text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return (
+      <LayoutWrapper>
+        <RouteErrorBoundary>
+          <MainPage />
+        </RouteErrorBoundary>
+      </LayoutWrapper>
+    );
+  }
+
+  return <Landing />;
+};
+
 // Wraps children with NavigationProvider, passing user context
 const NavigationProviderWrapper = ({ children }) => {
   const { user } = useAuth();
@@ -147,15 +193,16 @@ const AuthenticatedApp = () => {
       <Route path="/Login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/ContactUs" element={<LayoutWrapper currentPageName="Contact Us"><ContactUs /></LayoutWrapper>} />
-      <Route path="/contact" element={<LayoutWrapper currentPageName="Contact Us"><ContactUs /></LayoutWrapper>} />
+      <Route path="/contact" element={<Navigate to="/ContactUs" replace />} />
       <Route path="/TermsConditions" element={<LayoutWrapper currentPageName="Terms & Conditions"><TermsConditions /></LayoutWrapper>} />
-      <Route path="/terms" element={<LayoutWrapper currentPageName="Terms & Conditions"><TermsConditions /></LayoutWrapper>} />
+      <Route path="/terms" element={<Navigate to="/TermsConditions" replace />} />
       <Route path="/RefundsCancellations" element={<LayoutWrapper currentPageName="Refunds & Cancellations"><RefundsCancellations /></LayoutWrapper>} />
-      <Route path="/refunds" element={<LayoutWrapper currentPageName="Refunds & Cancellations"><RefundsCancellations /></LayoutWrapper>} />
+      <Route path="/refunds" element={<Navigate to="/RefundsCancellations" replace />} />
       <Route path="/PrivacyPolicy" element={<LayoutWrapper currentPageName="Privacy Policy"><PrivacyPolicy /></LayoutWrapper>} />
-      <Route path="/privacy" element={<LayoutWrapper currentPageName="Privacy Policy"><PrivacyPolicy /></LayoutWrapper>} />
+      <Route path="/privacy" element={<Navigate to="/PrivacyPolicy" replace />} />
       <Route path="/AboutUs" element={<LayoutWrapper currentPageName="About Us"><AboutUs /></LayoutWrapper>} />
-      <Route path="/about" element={<LayoutWrapper><AboutUs /></LayoutWrapper>} />
+      <Route path="/about" element={<Navigate to="/AboutUs" replace />} />
+      <Route path="/Home" element={<Navigate to="/" replace />} />
 
       {/* ── Meals Module ── */}
       <Route path="/meals" element={
@@ -168,39 +215,33 @@ const AuthenticatedApp = () => {
         </RequireAuth>
       } />
 
-      {/* ── Root — redirect to /Shop (RequireAuth handles login redirect) ── */}
-      <Route path="/" element={
-        <RequireAuth>
+      {/* ── Root — public marketing landing for visitors, shop for members ── */}
+      <Route path="/" element={<HomeRoute />} />
+
+      {/* ── App pages — browsing is public, transact/account stays behind auth ── */}
+      {Object.entries(Pages).map(([path, Page]) => {
+        // /Home is an alias handled above as a redirect to the real root.
+        if (path === 'Home') return null;
+        const LazyComponent = LAZY_PAGES[path];
+        const isPublic = PUBLIC_PAGES.has(path);
+        const body = (
           <LayoutWrapper >
             <RouteErrorBoundary>
-              <MainPage />
+              {LazyComponent ? (
+                <Suspense fallback={<PageLoadingSkeleton />}>
+                  <LazyComponent />
+                </Suspense>
+              ) : (
+                <Page />
+              )}
             </RouteErrorBoundary>
           </LayoutWrapper>
-        </RequireAuth>
-      } />
-
-      {/* ── All app pages — require login ── */}
-      {Object.entries(Pages).map(([path, Page]) => {
-        const LazyComponent = LAZY_PAGES[path];
+        );
         return (
           <Route
             key={path}
             path={`/${path}`}
-            element={
-              <RequireAuth>
-                <LayoutWrapper >
-                  <RouteErrorBoundary>
-                    {LazyComponent ? (
-                      <Suspense fallback={<PageLoadingSkeleton />}>
-                        <LazyComponent />
-                      </Suspense>
-                    ) : (
-                      <Page />
-                    )}
-                  </RouteErrorBoundary>
-                </LayoutWrapper>
-              </RequireAuth>
-            }
+            element={isPublic ? body : <RequireAuth>{body}</RequireAuth>}
           />
         );
       })}
@@ -317,6 +358,7 @@ function App() {
           <AuthProvider>
             <QueryClientProvider client={queryClientInstance}>
               <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <RouteSentinel />
                 <NavigationProviderWrapper>
                   <OfflineBanner />
                   <NavigationTracker />

@@ -165,7 +165,7 @@ export default function CashfreePayment({
         <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center flex-shrink-0 border border-emerald-100">
           <img 
             src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6885ba54fc40d82179646aca/56f3d15ef_WhatsAppImage2025-12-13at111830AM.jpeg"
-            alt="CollegeCart"
+            alt="CollegeCart store logo"
             className="w-6 h-6 object-contain"
           />
         </div>

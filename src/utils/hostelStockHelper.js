@@ -112,6 +112,7 @@ export async function enrichProductsWithHostelStock(products, hostelName) {
     console.log('[enrichProductsWithHostelStock] No hostel or Other, using total stock');
     return products.map(p => ({
       ...p,
+      has_hostel_stock: false,
       hostel_stock_quantity: p.stock_quantity || 0
     }));
   }
@@ -122,18 +123,32 @@ export async function enrichProductsWithHostelStock(products, hostelName) {
   
   console.log('[enrichProductsWithHostelStock] Hostel stock map size:', Object.keys(hostelStockMap).length);
 
-  // When a hostel is selected, ONLY use hostel stock data
-  // If a product has no record in hostel_stock for this hostel, treat as 0 (out of stock)
-  // This ensures out-of-stock items in a hostel are never shown as available
+  // Two different situations must not be collapsed into one:
+  //
+  //   has_hostel_stock = true  -> this product is stocked per hostel and the row
+  //                              says 0, so it is genuinely sold out HERE. It
+  //                              must not show an ADD button.
+  //   has_hostel_stock = false -> no per-hostel row exists at all. 76 of 299
+  //                              products are in this state, and hiding them
+  //                              would take real, orderable products off the
+  //                              shelf. Treat them as available via total stock.
+  //
+  // Treating a missing row as 0 (the previous behaviour) is what made 95
+  // genuinely sold-out products look available, and what would have made these
+  // 76 disappear. Only an explicit 0 counts as sold out.
 
   return products.map(product => {
-    // If product has a hostel stock record, use it. Otherwise it's 0 (not available in this hostel)
-    const hostelStock = hostelStockMap[product.id];
-    const finalStock = hostelStock !== undefined ? hostelStock : 0;
-    
+    const hasRecord = Object.prototype.hasOwnProperty.call(hostelStockMap, product.id);
+
     return {
       ...product,
-      hostel_stock_quantity: finalStock
+      has_hostel_stock: hasRecord,
+      // Always a number so the many existing `hostel_stock_quantity !== undefined`
+      // call sites keep working unchanged. The boolean above is what tells the
+      // display/guard logic whether the number is a real per-hostel figure.
+      hostel_stock_quantity: hasRecord
+        ? hostelStockMap[product.id] || 0
+        : product.stock_quantity || 0,
     };
   });
 }
@@ -230,37 +245,51 @@ export async function getProductHostelStock(productId, hostelName) {
 }
 
 /**
- * Check if product is in stock for a specific hostel
- * @param {Object} product - Product object
- * @param {string} hostelName - Hostel name
- * @returns {boolean} True if in stock
+ * Check if product is in stock for a specific hostel.
+ * Must always agree with getDisplayStock — the ADD button and the cart guard
+ * both use these, and any disagreement is what let sold-out items be added.
  */
 export function isProductInStock(product, hostelName) {
   if (!product) return false;
-
-  // Use hostel_stock_quantity if available (enriched product)
-  if (product.hostel_stock_quantity !== undefined) {
-    return product.hostel_stock_quantity > 0;
-  }
-
-  // Fallback to total stock
-  return (product.stock_quantity || 0) > 0;
+  return getDisplayStock(product, hostelName) > 0;
 }
 
 /**
- * Get display stock for a product (hostel-specific or total)
- * @param {Object} product - Product object
- * @param {string} hostelName - Hostel name
- * @returns {number} Stock quantity to display
+ * getDisplayStock — the stock figure that must be shown and enforced.
+ *
+ * This is the ONLY definition. Five call sites used to carry their own copy and
+ * two of them (Shop.jsx, CategoryProducts.jsx) "helpfully" fell back to the
+ * global `stock_quantity` when the hostel figure was 0. That made an item that
+ * is out of stock in the selected hostel still render an enabled ADD button,
+ * because the shop believed there was stock left.
+ *
+ * Semantics:
+ *   - `hostel_stock_quantity` is set by enrichProductsWithHostelStock() and is
+ *     authoritative once a real hostel is selected. 0 means genuinely sold out
+ *     in that hostel, and must never be second-guessed.
+ *   - With no hostel selected (or "Other"), there is no per-hostel figure, so the
+ *     global `stock_quantity` is correct.
+ *
+ * Never reintroduce a "if hostel is 0 but total > 0, use total" branch. Stock
+ * is stocked per hostel; an empty shelf in one hostel is not restocked by
+ * inventory sitting in another.
  */
 export function getDisplayStock(product, hostelName) {
   if (!product) return 0;
 
-  // Use enriched hostel stock if available
-  if (product.hostel_stock_quantity !== undefined) {
-    return product.hostel_stock_quantity;
+  const hostelSelected = !!hostelName && hostelName !== "Other";
+  if (!hostelSelected) {
+    return product.stock_quantity || 0;
   }
 
-  // Fallback to total stock
+  // A hostel is chosen. If the product is stocked per hostel, that row is
+  // authoritative — a 0 means sold out in this hostel and must be respected.
+  if (product.has_hostel_stock === true) {
+    return product.hostel_stock_quantity || 0;
+  }
+
+  // No per-hostel row exists for this product, so per-hostel stock has not been
+  // configured for it. Fall back to total stock rather than hiding a product
+  // that may well be orderable.
   return product.stock_quantity || 0;
 }

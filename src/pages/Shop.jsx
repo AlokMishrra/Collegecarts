@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSEO } from "@/lib/useSEO";
+import { ROUTE_META } from "@/route-meta";
 import { base44 } from "@/api/base44Client";
 import { CartItem } from "@/entities/CartItem";
 import { User } from "@/entities/User";
@@ -11,7 +12,7 @@ import {
   getCacheStatus, getCachedData,
   deduplicatedFetch, invalidateCache,
 } from "@/utils/shopCache";
-import { enrichProductsWithHostelStock } from "@/utils/hostelStockHelper";
+import { enrichProductsWithHostelStock, getDisplayStock, isProductInStock as stockIsInStock } from "@/utils/hostelStockHelper";
 import { toast } from "sonner";
 import { ShoppingBag } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -42,9 +43,15 @@ const RATE_LIMIT_WINDOW = 10_000; // per 10s window
 
 export default function Shop() {
   const navigate = useNavigate();
+  // ── Sitelinks searchbox: index.html's SearchAction targets /Shop?q={q} ──
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts]                 = useState([]);
   const [categories, setCategories]             = useState([]);
-  const [searchQuery, setSearchQuery]           = useState("");
+  // Read ?q= exactly once, on mount (lazy initializer → never re-reads per render)
+  const [searchQuery, setSearchQuery]           = useState(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    return q ? q : "";
+  });
   const [isLoading, setIsLoading]               = useState(true);
   const [user, setUser]                         = useState(null);
   const [cartItems, setCartItems]               = useState([]);
@@ -72,6 +79,42 @@ export default function Shop() {
     cartItemsRef.current = cartItems;
   }, [cartItems]);
 
+  // Ref for stock polling to avoid stale closure
+  const productsRef = useRef(products);
+  useEffect(() => { productsRef.current = products; }, [products]);
+
+  // ── URL ↔ searchQuery sync ────────────────────────────────────────────
+  // searchQuery stays the source of truth for filtering; we only mirror it
+  // into ?q= (replace, so the back button isn't polluted with keystrokes).
+
+  // Skip the mount run: searchQuery already came from ?q=, writing it straight
+  // back would be a no-op replace. Deps are [searchQuery] only, so writing the
+  // URL re-renders the route but never re-triggers this effect → no loop.
+  const searchUrlSynced = useRef(false);
+  useEffect(() => {
+    if (!searchUrlSynced.current) {
+      searchUrlSynced.current = true;
+      return;
+    }
+    const currentQ = searchParams.get("q") || "";
+    if (currentQ === searchQuery) return;
+    const next = new URLSearchParams(searchParams);
+    if (searchQuery) next.set("q", searchQuery);
+    else next.delete("q");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  // EnhancedSearch owns its own input text and reports "" back on mount
+  // (and whenever its internal query is empty). Ignore that empty echo until
+  // the user has actually typed, otherwise a ?q= seed would be wiped at once.
+  const searchBoxTouched = useRef(false);
+  const handleSearchFromBox = useCallback((value) => {
+    if (value) searchBoxTouched.current = true;
+    if (!value && !searchBoxTouched.current) return;
+    setSearchQuery(value);
+  }, []);
+
   const getCartQuantity = useCallback(productId => {
     const item = cartItemsRef.current.find(i => i.product_id === productId);
     return item ? item.quantity : 0;
@@ -86,11 +129,7 @@ export default function Shop() {
 
   // ── Mount: load data + user + REALTIME stock updates ──────────
   useEffect(() => {
-    useSEO({
-      title: "Shop – Groceries, Snacks & Essentials",
-      description: "Order groceries, snacks, beverages, and daily essentials for delivery to your hostel room in 10 minutes. Student-friendly prices. CollegeCart.",
-      url: "/Shop",
-    });
+    useSEO(ROUTE_META["/Shop"]);
 
     const abortController = new AbortController();
     checkUser();
@@ -329,17 +368,15 @@ export default function Shop() {
 
   // ── Stock helpers ─────────────────────────────────────────────────────
   const getHostelStock = useCallback((product) => {
-    // Prefer hostel-specific, but fallback to total stock so items remain orderable (e.g., Mithali 0 but total 10)
-    if (product.hostel_stock_quantity !== undefined && product.hostel_stock_quantity !== null) {
-      if (product.hostel_stock_quantity > 0) return product.hostel_stock_quantity;
-      if ((product.stock_quantity || 0) > 0) return product.stock_quantity;
-      return 0;
-    }
-    return product.stock_quantity || 0;
-  }, []);
+    // Single source of truth. This previously fell back to the global
+    // stock_quantity when the hostel figure was 0, which rendered an enabled ADD
+    // button for items that were sold out in the selected hostel.
+    return getDisplayStock(product, user?.selected_hostel);
+  }, [user?.selected_hostel]);
 
   const isProductInStock = useCallback((product) => {
-    const stock = getHostelStock(product);
+    // Availability window check, layered on the shared per-hostel stock rule.
+    const stock = stockIsInStock(product, user?.selected_hostel);
     
     if (product.available_from && product.available_to) {
       try {
@@ -459,6 +496,42 @@ export default function Shop() {
     setCategories(enrichedCategories);
   }, [user?.selected_hostel]);
 
+  // ── Blinkit-style stock polling: refresh hostel stock every 25s + on focus ─
+  // Keeps egress low (one small hostel_stock query) but never shows stale out-of-stock.
+  // Product metadata stays cached 5m, stock is always fresh — matches Blinkit/Zepto listing.
+  useEffect(() => {
+    if (isLoading || !productsRef.current.length) return;
+    const hostel = user?.selected_hostel;
+    if (!hostel || hostel === 'Other') return;
+
+    const refreshStock = async () => {
+      try {
+        const current = productsRef.current;
+        if (!current.length) return;
+        const enriched = await enrichProductsWithHostelStock(current, hostel);
+        const sorted = [...enriched].sort((a, b) => {
+          const aS = a.hostel_stock_quantity ?? a.stock_quantity ?? 0;
+          const bS = b.hostel_stock_quantity ?? b.stock_quantity ?? 0;
+          if (aS > 0 && bS === 0) return -1;
+          if (aS === 0 && bS > 0) return 1;
+          return (a.display_order || 0) - (b.display_order || 0);
+        });
+        const changed = sorted.some((p, i) => p.hostel_stock_quantity !== current[i]?.hostel_stock_quantity);
+        if (changed) setProducts(sorted);
+      } catch {}
+    };
+
+    const interval = setInterval(refreshStock, 60000);
+    const onFocus = () => { if (document.visibilityState === 'visible') refreshStock(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [user?.selected_hostel, isLoading]);
+
   const loadData = useCallback(async (signal, forceRefresh = false) => {
     // Only invalidate cache if force refresh is requested
     if (forceRefresh) {
@@ -515,7 +588,7 @@ export default function Shop() {
    */
   const flushCartWrite = useCallback(async (productId, targetQty, existingItemId) => {
     delete pendingCart.current[productId];
-    
+
     try {
       if (targetQty <= 0) {
         // Deleting item - match by user & product to avoid stale ID race conditions
@@ -528,20 +601,47 @@ export default function Shop() {
         if (deleteErr) throw deleteErr;
         notifyCartUpdate();
       } else {
-        // Check if item already exists for this user+product
-        const existing = await CartItem.filter({ user_id: user.id, product_id: productId }).catch(() => []);
+        // Use the id we already know about. Re-querying introduced a race and,
+        // worse, the old code did `.catch(() => [])` on the lookup: a failed read
+        // looked like "no such row", so it tried to INSERT a second row for a
+        // product already in the cart. That is what produced "Failed to update
+        // cart. Please try again." over and over.
+        let existingId = existingItemId;
+        if (!existingId) {
+          const { data: existing, error: findErr } = await supabase
+            .from('cart_items')
+            .select('id')
+            .eq('product_id', productId)
+            .eq('user_id', user.id)
+            .limit(1);
 
-        if (existing && existing.length > 0) {
-          // Update existing item
-          const updated = await CartItem.update(existing[0].id, { quantity: targetQty });
+          if (findErr) throw findErr;
+          existingId = existing && existing[0] ? existing[0].id : null;
+        }
+
+        if (existingId) {
+          const { error: updateErr } = await supabase
+            .from('cart_items')
+            .update({ quantity: targetQty, updated_at: new Date().toISOString() })
+            .eq('id', existingId)
+            .eq('user_id', user.id);
+
+          if (updateErr) throw updateErr;
+
           setCartItems(prev => prev.map(item =>
             item.product_id === productId
-              ? { ...item, id: updated.id, quantity: targetQty }
+              ? { ...item, id: existingId, quantity: targetQty }
               : item
           ));
         } else {
-          // Create new item
-          const created = await CartItem.create({ product_id: productId, user_id: user.id, quantity: targetQty });
+          const { data: created, error: createErr } = await supabase
+            .from('cart_items')
+            .insert({ product_id: productId, user_id: user.id, quantity: targetQty })
+            .select()
+            .single();
+
+          if (createErr) throw createErr;
+
           setCartItems(prev => prev.map(item =>
             item.product_id === productId
               ? { ...item, id: created.id, quantity: targetQty }
@@ -556,29 +656,35 @@ export default function Shop() {
         if (user?.id) loadCartItems(user.id);
       }, 1000);
     } catch (err) {
-      await logErrorToDB("API", err.message, "/shop/cart/write", err.stack).catch(() => {});
+      await logErrorToDB("API", `${err?.message || err}${err?.code ? ` [${err.code}]` : ""}`, "/shop/cart/write", err.stack).catch(() => {});
       console.error("[Cart] write failed:", err);
       // Only reload on error to revert optimistic update
       if (user?.id) loadCartItems(user.id);
-      toast.error("Failed to update cart. Please try again.");
+      // Surface the real reason. The old generic message hid every distinct
+      // failure behind one string, which is why this kept recurring undiagnosed.
+      const reason = err?.message || String(err);
+      toast.error("Couldn't update your cart", {
+        description: reason.length > 120 ? `${reason.slice(0, 120)}…` : reason,
+      });
     }
   }, [user]);
 
   const updateCartQuantity = useCallback(async (product, quantityChange) => {
     if (!user) { navigate('/login'); return; }
-    if (!checkRateLimit()) return;
+    if (checkRateLimit()) return;
 
-    // Get fresh hostel stock before allowing any add operation
+    // Always read the authoritative per-hostel figure. The product object in
+    // state can be stale, and getHostelStock now refuses to invent stock that the
+    // selected hostel does not have.
     const currentHostelStock = getHostelStock(product);
-    
-    // Block if trying to add and stock is 0
+
     if (quantityChange > 0 && currentHostelStock <= 0) {
-      toast.error(`${product.name} is out of stock in your hostel`);
+      toast.error(`${product.name} is out of stock in ${user.selected_hostel || 'your hostel'}`);
       return;
     }
 
     if (quantityChange > 0 && !isProductInStock(product)) {
-      toast.error(`${product.name} is currently out of stock`);
+      toast.error(`${product.name} is currently unavailable`);
       return;
     }
 
@@ -588,7 +694,7 @@ export default function Shop() {
     const newQty       = currentQty + quantityChange;
 
     if (newQty > hostelStock && quantityChange > 0) {
-      toast.warning(`Only ${hostelStock} unit${hostelStock === 1 ? "" : "s"} available`);
+      toast.warning(`Only ${hostelStock} unit${hostelStock === 1 ? "" : "s"} left in ${user.selected_hostel || 'your hostel'}`);
       return;
     }
 
@@ -671,6 +777,8 @@ export default function Shop() {
           />
         )}
 
+        {/* SEO H1 — visually hidden but indexable, preserves design */}
+        <h1 className="sr-only">Shop Groceries & Essentials — 10 Minute Hostel Delivery | CollegeCart</h1>
         {/* Header with delivery promise + address */}
         <EnhancedShopHero
           hostelName={user?.selected_hostel}
@@ -680,7 +788,7 @@ export default function Shop() {
         {/* Search — now with shop-customized filter sheet */}
         <EnhancedSearch
           products={products}
-          onSearch={setSearchQuery}
+          onSearch={handleSearchFromBox}
           filters={filters}
           onFilterChange={setFilters}
           sortBy={sortBy}

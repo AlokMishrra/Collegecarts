@@ -514,7 +514,7 @@ export default function MealManagement() {
                   {filteredMenu.map(item => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        {item.image_url ? <img src={item.image_url} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} /> : null}
+                        {item.image_url ? <img src={item.image_url} alt={`${item.name || 'Menu item'} meal photo`} className="w-10 h-10 rounded-lg object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} /> : null}
                         <div className={`w-10 h-10 bg-gray-100 rounded-lg items-center justify-center text-gray-400 text-xs ${item.image_url ? 'hidden' : 'flex'}`}>No img</div>
                       </TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
@@ -618,7 +618,7 @@ export default function MealManagement() {
                               }`}>
                                 {isSelected && <CheckCircle className="w-3 h-3 text-white" />}
                               </div>
-                              {item.image_url && <img src={item.image_url} className="w-8 h-8 rounded-md object-cover" />}
+                              {item.image_url && <img src={item.image_url} alt={`${item.name || 'Menu item'} meal photo`} className="w-8 h-8 rounded-md object-cover" />}
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium truncate">{item.name}</p>
                                 <p className="text-[10px] text-gray-500">{item.calories} kcal • ₹{item.price}</p>
@@ -1331,11 +1331,10 @@ export default function MealManagement() {
               <Input value={menuForm.image_url} onChange={e => setMenuForm(p => ({...p, image_url: e.target.value.trim()}))} placeholder="https://..." />
               {menuForm.image_url && (
                 <div className="mt-2">
-                  <img 
+                  <img alt="Preview of the meal image URL entered"
                     src={menuForm.image_url} 
                     className="w-16 h-16 rounded-lg object-cover border" 
                     onError={(e) => { e.target.src = 'https://placehold.co/64x64/fee2e2/ef4444?text=Invalid'; }}
-                    alt="Preview"
                   />
                 </div>
               )}

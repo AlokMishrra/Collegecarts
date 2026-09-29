@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
+import { totalEarningsFrom } from "@/utils/deliveryEarnings";
 import { DeliveryPerson } from "@/entities/DeliveryPerson";
 import { User } from "@/entities/User";
 import { Plus, Edit, Trash2, User as UserIcon, Ban, CheckCircle, Wallet, RefreshCw, Clock, ArrowUpCircle, XCircle, Loader2, TrendingUp, Power } from "lucide-react";
@@ -134,10 +136,39 @@ export default function DeliveryPersonManagement() {
       txnType = "deposit";
       txnDesc = `Wallet top-up approved: ₹${req.amount} (Txn: ${req.transaction_id || "—"})`;
     } else {
-      // Withdrawal: deduct from total_earnings ONLY — never touch wallet_balance
-      const currentEarnings = partner?.total_earnings || 0;
-      const newEarnings = Math.max(0, currentEarnings - req.amount);
-      partnerUpdate = { total_earnings: newEarnings };
+      // Withdrawal: deduct from the ledger-derived earnings figure, never from
+      // the delivery_persons counter. That counter was double-incremented on
+      // duplicate delivery completions, so subtracting from it kept the
+      // overstatement permanently baked in and let partners withdraw more than
+      // they earned. wallet_transactions already records the payout below, so the
+      // correct total is simply the commission total minus withdrawals.
+      const { data: commissionRows } = await supabase
+        .from("wallet_transactions")
+        .select("amount, description, order_id")
+        .eq("delivery_person_id", partner.id)
+        .eq("type", "delivery_earning");
+      const earnedSoFar = totalEarningsFrom(commissionRows || []);
+      const { data: paidOut } = await supabase
+        .from("wallet_transactions")
+        .select("amount")
+        .eq("delivery_person_id", partner.id)
+        .eq("type", "withdrawal");
+      const withdrawnSoFar = (paidOut || []).reduce(
+        (sum, t) => sum + Math.abs(t.amount || 0), 0
+      );
+      // total_earnings is a GROSS lifetime figure (commission earned, never
+      // resets), so a withdrawal must not decrement it — doing so is what let the
+      // stored number drift away from the ledger. Withdrawability is derived
+      // from the ledger on demand instead: earned - already withdrawn.
+      const available = Math.max(0, earnedSoFar - withdrawnSoFar);
+      if (req.amount > available) {
+        toast.error(
+          `Cannot approve ₹${req.amount}: this partner has ₹${available.toFixed(2)} of commission left to withdraw.`
+        );
+        loadDeliveryPersons();
+        return;
+      }
+      partnerUpdate = {};
       txnAmount = -req.amount;
       txnType = "withdrawal";
       txnDesc = `Withdrawal approved: ₹${req.amount} to ${req.upi_id || "—"}`;

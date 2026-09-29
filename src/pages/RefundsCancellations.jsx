@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { useSEO } from "@/lib/useSEO";
+import { ROUTE_META } from "@/route-meta";
 import { CheckCircle, XCircle, Clock, IndianRupee } from "lucide-react";
 
 const Section = ({ title, children }) => (
@@ -11,11 +12,7 @@ const Section = ({ title, children }) => (
 
 export default function RefundsCancellations() {
   useEffect(() => {
-    useSEO({
-      title: "Refunds & Cancellations",
-      description: "CollegeCart's refund and cancellation policy. Learn how to cancel an order, when refunds are applicable, and how long they take to process.",
-      url: "/refunds",
-    });
+    useSEO(ROUTE_META["/RefundsCancellations"]);
   }, []);
 
   return (

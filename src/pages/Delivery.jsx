@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import {
   Truck, MapPin, Phone, Package, CheckCircle, Loader2, Lock, User,
@@ -522,9 +522,36 @@ export default function Delivery() {
     setUpdatingOrderId(null);
   };
 
+  // ── Idempotency guard ───────────────────────────────────────────────────
+  // markOrderDelivered used to be re-entrant: a double-tap, or the OTP dialog
+  // firing onVerify while a swipe handler completed the same order, re-ran the
+  // whole function and credited the 10% commission twice. Each duplicate write
+  // also inflated total_earnings and lifetime_earnings, which is how the wallet
+  // counter ended up roughly double the real ledger. Once an order id lands
+  // here it stays for the life of the session, and the DB order status is
+  // re-checked before any money moves.
+  const creditedOrdersRef = useRef(new Set());
+
   const markOrderDelivered = async () => {
     const order = otpDialog.order;
     if (!order) return;
+
+    if (creditedOrdersRef.current.has(order.id)) return;
+    creditedOrdersRef.current.add(order.id);
+
+    // Re-read the order: if the server already has it as delivered, the
+    // commission for this order has been credited by an earlier attempt.
+    try {
+      const { data: freshOrder } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', order.id)
+        .maybeSingle();
+      if (freshOrder?.status === 'delivered') return;
+    } catch {
+      /* offline — the in-session guard above still prevents a double credit */
+    }
+
     setOtpDialog({ open: false, order: null });
 
     // Use cached person for instant UI — don't wait for DB fetch
@@ -562,9 +589,13 @@ export default function Delivery() {
           wallet_balance: newWalletBalance,
           current_orders: (freshPerson.current_orders || []).filter(id => id !== order.id)
         }),
-        // Single commission transaction — no duplicate for COD orders
+        // Single commission transaction — no duplicate for COD orders.
+        // order_id is what makes the uniqueness constraint below possible, so it
+        // must always be set: it is the one field that identifies which delivery
+        // this commission pays for.
         base44.entities.WalletTransaction.create({
           delivery_person_id: deliveryPerson.id,
+          order_id: order.id,
           amount: commission,
           type: "delivery_earning",
           description: isCODPending

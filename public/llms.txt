@@ -1,0 +1,30 @@
+# CollegeCart
+
+> CollegeCart is a campus convenience delivery platform in India. It delivers groceries,
+> dairy, snacks and daily essentials to college hostel rooms in about 10 minutes.
+> Founded by Alok Mishra in 2026. Live at Shivalik College and Quantum University.
+
+CollegeCart does not have a blog. The pages below are the canonical, public sources
+about the company, the service and its policies. Prices, stock and the product
+catalogue are live data served by the shop app and change every minute.
+
+## Company
+
+- [About CollegeCart](https://shop.collegecarts.in/AboutUs): who runs the service, why it exists, and the founder story.
+- [Contact](https://shop.collegecarts.in/ContactUs): phone, email and support hours.
+
+## Service
+
+- [Home](https://shop.collegecarts.in/): overview of the 10-minute hostel delivery service.
+- [Shop](https://shop.collegecarts.in/Shop): the full product catalogue.
+- [Categories](https://shop.collegecarts.in/Categories): product categories.
+
+## Policies
+
+- [Privacy Policy](https://shop.collegecarts.in/PrivacyPolicy): what data is collected and how it is used.
+- [Terms & Conditions](https://shop.collegecarts.in/TermsConditions): terms governing orders, payments and use.
+- [Refunds & Cancellations](https://shop.collegecarts.in/RefundsCancellations): cancellation windows and refund timelines.
+
+## Optional
+
+- [Markdown home](https://shop.collegecarts.in/index.md): the home page as plain Markdown, if available.

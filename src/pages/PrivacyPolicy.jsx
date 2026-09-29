@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { useSEO } from "@/lib/useSEO";
+import { ROUTE_META } from "@/route-meta";
 
 const Section = ({ title, children }) => (
   <div className="mb-8">
@@ -10,11 +11,7 @@ const Section = ({ title, children }) => (
 
 export default function PrivacyPolicy() {
   useEffect(() => {
-    useSEO({
-      title: "Privacy Policy",
-      description: "CollegeCart's Privacy Policy. Learn how we collect, use, and protect your personal data when you use our grocery delivery service.",
-      url: "/privacy",
-    });
+    useSEO(ROUTE_META["/PrivacyPolicy"]);
   }, []);
 
   return (

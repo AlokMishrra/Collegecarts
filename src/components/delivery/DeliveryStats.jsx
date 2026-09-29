@@ -3,8 +3,11 @@ import { Order } from "@/entities/Order";
 import { Card, CardContent } from "@/components/ui/card";
 import { Package, DollarSign, TrendingUp, Clock } from "lucide-react";
 import { motion } from "framer-motion";
+import { getEarningsSummary } from "@/utils/deliveryEarnings";
 
 export default function DeliveryStats({ deliveryPerson }) {
+  const [ledgerEarnings, setLedgerEarnings] = useState(null);
+  const totalEarnings = ledgerEarnings ?? (deliveryPerson?.total_earnings || 0);
   const [todayStats, setTodayStats] = useState({
     ordersDelivered: 0,
     incentiveEarned: 0,
@@ -47,13 +50,24 @@ export default function DeliveryStats({ deliveryPerson }) {
       setTodayStats({
         ordersDelivered: ordersDeliveredCount,
         incentiveEarned: todayIncentive,
-        totalEarnings: deliveryPerson.total_earnings || 0,
+        totalEarnings,
         activeOrders: activeOrders.length
       });
     } catch (error) {
       console.error("Error loading today's stats:", error);
     }
   }, [deliveryPerson]); // Dependency array for useCallback
+
+  // Total earnings must come from the wallet ledger, not the
+  // delivery_persons counter — that counter was double-incremented whenever a
+  // delivery completed twice and overstated what partners earned.
+  useEffect(() => {
+    let active = true;
+    getEarningsSummary(deliveryPerson.id)
+      .then((s) => { if (active) setLedgerEarnings(s.totalEarnings); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [deliveryPerson.id]);
 
   useEffect(() => {
     loadTodayStats();

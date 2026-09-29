@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProductCard from "../components/shop/ProductCard";
+import { getDisplayStock } from "@/utils/hostelStockHelper";
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -136,12 +137,8 @@ export default function Wishlist() {
     return item ? item.quantity : 0;
   };
 
-  const getHostelStock = (product) => {
-    if (!user?.selected_hostel || user.selected_hostel === 'Other') {
-      return product.stock_quantity || 0;
-    }
-    return product.hostel_stock?.[user.selected_hostel] || 0;
-  };
+  const getHostelStock = (product) =>
+    getDisplayStock(product, user?.selected_hostel);
 
   const isProductInStock = (product) => {
     const hostelStock = getHostelStock(product);

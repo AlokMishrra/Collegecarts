@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Wallet, Package, ArrowUpCircle, AlertTriangle, Loader2, PlusCircle, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase";
+import { getEarningsSummary } from "@/utils/deliveryEarnings";
 
 export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarningsFromParent }) {
   const [transactions, setTransactions] = useState([]);
@@ -21,17 +22,34 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
   const [isLoading, setIsLoading] = useState(false);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [todayEarnings, setTodayEarnings] = useState(0);
+  const [ledgerTotal, setLedgerTotal] = useState(null);
   const [withdrawSource, setWithdrawSource] = useState("wallet");
 
   useEffect(() => { loadData(); }, [deliveryPerson.id]);
 
+  // ── Earnings are derived from the wallet ledger, never from the
+  // delivery_persons counters. Those counters were double-incremented when a
+  // delivery completed twice, which inflated the figure partners were shown and
+  // could let them withdraw more than they earned. See utils/deliveryEarnings.
+  const counterEarnings = deliveryPerson.total_earnings || 0;
+  // Fall back to the counter only until the full ledger has loaded.
+  const totalEarnings = ledgerTotal !== null ? ledgerTotal : counterEarnings;
+
   const loadData = async () => {
-    const [txns, withdrawals] = await Promise.all([
+    // The ledger can hold more rows than the 50 most-recent used for the
+    // history list, so pull every delivery_earning row for the totals.
+    const [txns, withdrawals, ledgerSum] = await Promise.all([
       base44.entities.WalletTransaction.filter({ delivery_person_id: deliveryPerson.id }, '-created_date', 50).catch(() => []),
       base44.entities.WithdrawalRequest.filter({ delivery_person_id: deliveryPerson.id, status: "pending" }).catch(() => []),
+      getEarningsSummary(deliveryPerson.id)
+        .then(({ totalEarnings: sum }) => sum)
+        .catch(() => null),
     ]);
     setTransactions(txns);
     setPendingWithdrawals(withdrawals);
+
+    setLedgerTotal(ledgerSum);
+
     const today = new Date().toDateString();
     const earn = txns
       .filter(t => new Date(t.created_date).toDateString() === today && t.type === "delivery_earning")
@@ -53,7 +71,7 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
 
   const handleRequestWithdrawal = async () => {
     const amount = parseFloat(withdrawAmount);
-    const maxAmount = withdrawSource === "earnings" ? (deliveryPerson.total_earnings || 0) : walletBalance;
+    const maxAmount = withdrawSource === "earnings" ? totalEarnings : walletBalance;
     if (!amount || amount <= 0 || amount > maxAmount) return;
     setIsLoading(true);
     await base44.entities.WithdrawalRequest.create({
@@ -267,7 +285,7 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
             </div>
             <div className="bg-white rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Lifetime Earnings</p>
-              <p className="text-xl font-bold text-amber-600">₹{(deliveryPerson.lifetime_earnings || 0).toFixed(2)}</p>
+              <p className="text-xl font-bold text-amber-600">₹{totalEarnings.toFixed(2)}</p>
               <p className="text-[10px] text-gray-400">Never resets</p>
             </div>
             <div className="bg-white rounded-xl p-3">
@@ -277,7 +295,8 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
             </div>
             <div className="bg-white rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Total Earnings</p>
-              <p className="text-xl font-bold text-purple-600">₹{(deliveryPerson.total_earnings || 0).toFixed(2)}</p>
+              <p className="text-xl font-bold text-purple-600">₹{totalEarnings.toFixed(2)}</p>
+              <p className="text-[10px] text-gray-400">From wallet ledger</p>
             </div>
             <div className="bg-white rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Total Deliveries</p>
@@ -307,7 +326,7 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
                 <ArrowUpCircle className="w-4 h-4 mr-1" />Withdraw Wallet
               </Button>
             )}
-            {(deliveryPerson.total_earnings || 0) > 0 && (
+            {totalEarnings > 0 && (
               <Button size="sm" variant="outline" onClick={() => { setWithdrawSource("earnings"); setWithdrawAmount(""); setShowWithdrawDialog(true); }} className="border-purple-500 text-purple-600 hover:bg-purple-50">
                 <ArrowUpCircle className="w-4 h-4 mr-1" />Withdraw Earnings
               </Button>
@@ -391,7 +410,7 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
             <div className="bg-gray-50 rounded-lg p-3">
               <p className="text-gray-500 text-xs">Available</p>
               <p className={`text-xl font-bold ${withdrawSource === "earnings" ? "text-purple-600" : "text-emerald-600"}`}>
-                ₹{withdrawSource === "earnings" ? (deliveryPerson.total_earnings || 0).toFixed(2) : walletBalance.toFixed(2)}
+                ₹{(withdrawSource === "earnings" ? totalEarnings : walletBalance).toFixed(2)}
               </p>
             </div>
             <div>
@@ -406,7 +425,7 @@ export default function WalletDashboard({ deliveryPerson, onUpdate, todayEarning
               <Button variant="outline" onClick={() => setShowWithdrawDialog(false)} className="flex-1">Cancel</Button>
               <Button
                 onClick={handleRequestWithdrawal}
-                disabled={isLoading || !withdrawAmount || !withdrawUpiId || parseFloat(withdrawAmount) > (withdrawSource === "earnings" ? (deliveryPerson.total_earnings || 0) : walletBalance) || parseFloat(withdrawAmount) <= 0}
+                disabled={isLoading || !withdrawAmount || !withdrawUpiId || parseFloat(withdrawAmount) > (withdrawSource === "earnings" ? totalEarnings : walletBalance) || parseFloat(withdrawAmount) <= 0}
                 className={`flex-1 ${withdrawSource === "earnings" ? "bg-purple-600 hover:bg-purple-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit Request"}

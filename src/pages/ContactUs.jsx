@@ -1,14 +1,11 @@
 import React, { useEffect } from "react";
 import { useSEO } from "@/lib/useSEO";
+import { ROUTE_META } from "@/route-meta";
 import { Mail, Phone, MapPin, Clock, MessageCircle } from "lucide-react";
 
 export default function ContactUs() {
   useEffect(() => {
-    useSEO({
-      title: "Contact Us",
-      description: "Get in touch with CollegeCart. Reach us at contact@collegecarts.in or call +91 7248316506. We're here to help with your orders, delivery queries, and more.",
-      url: "/contact",
-    });
+    useSEO(ROUTE_META["/ContactUs"]);
   }, []);
 
   return (

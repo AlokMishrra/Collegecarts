@@ -118,7 +118,7 @@ export default function ImageUploader({ onImageSelect, onImageUploaded, onImageS
           <div className="mt-2 w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-50">
             <img
               src={previewImage}
-              alt="Preview"
+              alt="Preview of the selected image upload"
               className="w-full h-full object-cover"
               onError={(e) => {
                 e.target.src = placeholder || "https://images.unsplash.com/photo-1542838132-92c53300491e?w=150";

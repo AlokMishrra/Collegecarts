@@ -1,31 +1,52 @@
 # CollegeCart Shop - Robots.txt
 # Domain: shop.collegecarts.in
 # Founded by Alok Mishra, 2026
+#
+# Policy note: account and utility pages are NOT blocked here. They carry
+# <meta name="robots" content="noindex, follow"> and must stay crawlable so
+# crawlers can actually read that directive. Only operational app areas that
+# have no public value are disallowed.
 
-# Allow all search engines
+# ── Default: all crawlers ──────────────────────────────────────────────
 User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /CCA
-Disallow: /api/
-Disallow: /private/
-Disallow: /*.json$
+Disallow: /employee/
 
-# Googlebot specific rules
-User-agent: Googlebot
+# ── AI answer engines ──────────────────────────────────────────────────
+# Permitted to fetch and cite. Declared explicitly so the intent is
+# machine-readable rather than implied by the wildcard group above.
+User-agent: GPTBot
 Allow: /
-Disallow: /admin/
-Disallow: /CCA
-Disallow: /api/
-Crawl-delay: 1
 
-# Bingbot rules
-User-agent: Bingbot
+User-agent: OAI-SearchBot
 Allow: /
-Disallow: /admin/
-Disallow: /CCA
-Disallow: /api/
 
-# Sitemap location
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# ── Sitemaps ───────────────────────────────────────────────────────────
 Sitemap: https://shop.collegecarts.in/sitemap.xml
 Sitemap: https://shop.collegecarts.in/sitemap-images.xml

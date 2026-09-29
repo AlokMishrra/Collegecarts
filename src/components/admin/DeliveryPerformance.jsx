@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Clock, Star, Package, Award } from "lucide-react";
 import { motion } from "framer-motion";
+import { supabase } from "@/lib/supabase";
+import { totalEarningsFrom } from "@/utils/deliveryEarnings";
 
 export default function DeliveryPerformance() {
   const [deliveryPersons, setDeliveryPersons] = useState([]);
@@ -18,11 +20,29 @@ export default function DeliveryPerformance() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [personsData, ordersData] = await Promise.all([
+      const [personsData, ordersData, commissionRows] = await Promise.all([
         base44.entities.DeliveryPerson.list(),
-        base44.entities.Order.filter({ status: 'delivered' })
+        base44.entities.Order.filter({ status: 'delivered' }),
+        // One query for every partner's commission rows, so the leaderboard
+        // shows what each partner actually earned. The delivery_persons counter
+        // was double-incremented on duplicate delivery completions and overstated
+        // earnings across the site.
+        supabase
+          .from('wallet_transactions')
+          .select('delivery_person_id, amount, description, order_id')
+          .eq('type', 'delivery_earning')
+          .then(({ data }) => data || [])
+          .catch(() => [])
       ]);
-      
+
+      const earningsByPerson = (commissionRows || []).reduce((acc, row) => {
+        (acc[row.delivery_person_id] ||= []).push(row);
+        return acc;
+      }, {});
+      for (const id of Object.keys(earningsByPerson)) {
+        earningsByPerson[id] = totalEarningsFrom(earningsByPerson[id]);
+      }
+
       setDeliveryPersons(personsData);
       
       // Calculate performance from orders data
@@ -60,7 +80,7 @@ export default function DeliveryPerformance() {
           totalDeliveries: person.total_deliveries || 0,
           avgDeliveryTime: avgDeliveryTime.toFixed(1),
           avgRating: avgRating.toFixed(1),
-          totalEarnings: person.total_earnings || 0,
+          totalEarnings: earningsByPerson[person.id] ?? 0,
           totalRevenue: totalRevenue,
           is_available: person.is_available
         };

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { ArrowLeft, Clock, Plus, SlidersHorizontal, X } from "lucide-react";
+import { ArrowLeft, Clock, Plus, SlidersHorizontal, X, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { deduplicatedFetch } from "@/utils/shopCache";
@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import FilterSheet from "@/components/shared/FilterSheet";
 import { notifyCartUpdate } from "@/utils/cartEvents";
 import { toast } from "sonner";
+import { useSEO, setJsonLd, removeJsonLd, SITE_ORIGIN } from "@/lib/useSEO";
+import { getDisplayStock } from "@/utils/hostelStockHelper";
 
 export default function CategoryProducts() {
   const navigate = useNavigate();
@@ -28,6 +30,40 @@ export default function CategoryProducts() {
   const [sortBy, setSortBy] = useState("relevance");
   const [categoryBanner, setCategoryBanner] = useState(null);
   const [subFilters, setSubFilters] = useState({ gourmet: false, brands: [], types: [], flavours: [], packaging: [], diet: [] });
+
+  // ── SEO: unique title/description per category + ItemList of products ──
+  useEffect(() => {
+    const name = activeCategoryName || "All Categories";
+
+    useSEO({
+      title: activeCategoryName ? `${name} — Buy Online` : "Shop by Category",
+      description: activeCategoryName
+        ? `Buy ${name.toLowerCase()} online at CollegeCart with about 10-minute delivery to your hostel room. Student-friendly prices, no minimum order.`
+        : "Browse every CollegeCart category — fruits, dairy, snacks, beverages and daily essentials — with about 10-minute delivery to your hostel room.",
+      type: "website",
+    });
+
+    const items = (products || []).slice(0, 30).map((p, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: p.name,
+      url: `${SITE_ORIGIN}/ProductDetails?id=${encodeURIComponent(p.id)}`,
+    }));
+
+    if (items.length > 0) {
+      setJsonLd("category-schema", {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        name: name,
+        numberOfItems: products.length,
+        itemListElement: items,
+      });
+    } else {
+      removeJsonLd("category-schema");
+    }
+
+    return () => removeJsonLd("category-schema");
+  }, [activeCategoryName, products]);
 
   useEffect(() => {
     loadData();
@@ -49,48 +85,11 @@ export default function CategoryProducts() {
     } catch { setCartItems([]); }
   };
 
-  const getHostelStock = (product) => {
-    // Prefer enriched hostel_stock_quantity, then hostel map, fallback to total stock so Treats Corner etc remain orderable
-    if (product.hostel_stock_quantity !== undefined && product.hostel_stock_quantity !== null) {
-      if (product.hostel_stock_quantity > 0) return product.hostel_stock_quantity;
-      // If hostel-specific is 0 but total stock exists, allow ordering (fallback)
-      if ((product.stock_quantity || 0) > 0) return product.stock_quantity;
-      return 0;
-    }
-    if (!user?.selected_hostel || user.selected_hostel === "Other") return product.stock_quantity || 0;
-    const hostelVal = product.hostel_stock?.[user.selected_hostel];
-    if (typeof hostelVal === "number") {
-      if (hostelVal > 0) return hostelVal;
-      if ((product.stock_quantity || 0) > 0) return product.stock_quantity;
-      return 0;
-    }
-    return product.stock_quantity ?? product.stock ?? 0;
-  };
-
-  const isProductInStock = (product) => {
-    if (product.available_from && product.available_to) {
-      try {
-        const now = new Date();
-        const cur = now.getHours() * 60 + now.getMinutes();
-        const parse = (t) => {
-          const m12 = t?.match(/(\d+):(\d+)\s*(AM|PM)/i);
-          if (m12) {
-            let h = parseInt(m12[1], 10);
-            const min = parseInt(m12[2], 10);
-            if (m12[3].toUpperCase() === "PM" && h !== 12) h += 12;
-            if (m12[3].toUpperCase() === "AM" && h === 12) h = 0;
-            return h * 60 + min;
-          }
-          const m24 = t?.match(/^(\d{1,2}):(\d{2})$/);
-          return m24 ? parseInt(m24[1], 10) * 60 + parseInt(m24[2], 10) : null;
-        };
-        const from = parse(product.available_from);
-        const to = parse(product.available_to);
-        if (from !== null && to !== null && !(cur >= from && cur <= to)) return false;
-      } catch { /* ignore */ }
-    }
-    return getHostelStock(product) > 0 || getCartQuantity(product.id) > 0;
-  };
+  const getHostelStock = (product) =>
+    // Single source of truth. This previously fell back to the global
+    // stock_quantity when the hostel figure was 0, so items sold out in the
+    // selected hostel still showed an enabled ADD button here.
+    getDisplayStock(product, user?.selected_hostel);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -368,6 +367,18 @@ export default function CategoryProducts() {
 
         {/* Right Product Grid Area - Scrolls independently */}
         <div className="flex-1 ml-[84px] overflow-y-auto bg-[#f8f8f8] pb-20" style={{ height: "calc(100vh - 56px)" }}>
+          {/* Breadcrumb: Home › Shop › Category */}
+          {activeCategoryName && (
+            <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 px-2.5 pt-2.5 text-sm text-slate-500">
+              <Link to="/" className="hover:text-[#0c831f] transition-colors">Home</Link>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
+              <Link to="/Shop" className="hover:text-[#0c831f] transition-colors">Shop</Link>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
+              <span aria-current="page" className="text-[#0c831f] font-medium truncate max-w-[55vw]">
+                {activeCategoryName}
+              </span>
+            </nav>
+          )}
           {/* Admin banner for this category — shows only if you create one in Admin → Banners */}
           {categoryBanner && (
             <div className="bg-white p-2.5">
