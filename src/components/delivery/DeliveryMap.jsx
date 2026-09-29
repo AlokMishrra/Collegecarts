@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { fetchByIds } from "@/lib/entity";
 
 // Fix for default marker icons in React Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -75,11 +76,10 @@ export default function DeliveryMap({ showAllDeliveryPersons = true, orderId = n
 
       // Load only if we have locations
       const personIds = [...new Set(locations.map(l => l.delivery_person_id))].slice(0, 10);
-      const personsData = await Promise.all(
-        personIds.map(id => base44.entities.DeliveryPerson.filter({ id }).catch(() => []))
-      );
+      // Batched: one request for all partners on the map.
+      const personsData = await fetchByIds("delivery_persons", personIds).catch(() => []);
       const personsMap = {};
-      personsData.flat().forEach(person => {
+      personsData.forEach(person => {
         personsMap[person.id] = person;
       });
       setDeliveryPersons(personsMap);
@@ -87,17 +87,16 @@ export default function DeliveryMap({ showAllDeliveryPersons = true, orderId = n
       // Load orders (limited)
       const orderIds = orderId ? [orderId] : [...new Set(locations.map(l => l.order_id).filter(Boolean))].slice(0, 10);
       if (orderIds.length > 0) {
-        const ordersData = await Promise.all(
-          orderIds.map(id => base44.entities.Order.filter({ id }).catch(() => []))
-        );
+        // Batched: one request for all orders on the map.
+        const ordersData = await fetchByIds("orders", orderIds).catch(() => []);
         const ordersMap = {};
-        ordersData.flat().forEach(order => {
+        ordersData.forEach(order => {
           ordersMap[order.id] = order;
         });
         setOrders(ordersMap);
 
         // Extract locations only for limited orders
-        await extractOrderLocations(ordersData.flat());
+        await extractOrderLocations(ordersData);
       }
 
       // Set center to first active delivery person

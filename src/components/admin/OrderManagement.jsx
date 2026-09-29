@@ -23,6 +23,7 @@ import {
 import DeliveryMap from "../delivery/DeliveryMap";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
+import { fetchByIds } from "@/lib/entity";
 
 function AdminOrderItem({ item }) {
   const [product, setProduct] = useState(null);
@@ -30,7 +31,7 @@ function AdminOrderItem({ item }) {
   useEffect(() => {
     const loadProduct = async () => {
       try {
-        const prods = await base44.entities.Product.filter({ id: item.product_id });
+        const prods = await fetchByIds("products", [item.product_id]);
         setProduct(prods[0] || null);
       } catch (error) {
         console.error("Error loading product:", error);
@@ -62,6 +63,8 @@ export default function OrderManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastOrderCount, setLastOrderCount] = useState(0);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [hostelFilter, setHostelFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -115,9 +118,13 @@ export default function OrderManagement() {
       setIsLoading(true);
     }
     try {
+      // Load ALL delivery partners, not only the online ones. The name lookup
+      // runs against this list, and an order is usually viewed long after the
+      // partner has gone offline — filtering to is_available:true made 206 of
+      // 347 assigned orders display as "Not assigned".
       const [ordersData, deliveryData] = await Promise.all([
         Order.list('-created_date'),
-        DeliveryPerson.filter({ is_available: true })
+        DeliveryPerson.list()
       ]);
       setOrders(ordersData);
       setDeliveryPersons(deliveryData);
@@ -369,17 +376,96 @@ export default function OrderManagement() {
     return person ? person.name : "Not assigned";
   };
 
-  const cancelOrder = async (orderId) => {
+  const CANCEL_REASONS = [
+    "Out of stock",
+    "Customer changed their mind",
+    "Customer unreachable",
+    "Duplicate order",
+    "Address out of delivery area",
+    "Payment failed / not collected",
+    "Delay too long",
+    "Other",
+  ];
+
+  const confirmCancelOrder = async () => {
+    const order = cancelTarget;
+    if (!order) return;
+    const reason = cancelReason.trim() || "Not specified";
+    setCancelTarget(null);
+    setCancelReason("");
+    await cancelOrder(order.id, reason);
+  };
+
+  /**
+   * PaymentCell — makes COD vs online unambiguous and surfaces the transaction
+   * id, which the order table previously never showed at all (the only place
+   * payment_method appeared was the PDF export).
+   */
+  const PaymentCell = ({ order }) => {
+    const method = (order.payment_method || "").toLowerCase();
+    const isCash = method === "cash" || method === "cod" || !order.is_paid;
+    // Prefer whichever gateway actually recorded the transaction.
+    const txnId =
+      order.razorpay_order_id ||
+      order.cashfree_order_id ||
+      order.cod_payment_id ||
+      order.payment_id ||
+      null;
+
+    return (
+      <div className="flex flex-col gap-1 text-xs">
+        <div className="flex items-center gap-1.5">
+          <Badge
+            className={
+              isCash
+                ? "bg-orange-100 text-orange-800 hover:bg-orange-100"
+                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+            }
+          >
+            {isCash ? "COD" : "ONLINE"}
+          </Badge>
+          <span className="text-gray-500">
+            {order.payment_method ? order.payment_method.toUpperCase() : "UNKNOWN"}
+          </span>
+        </div>
+
+        {isCash ? (
+          <span className={order.cod_collected ? "text-emerald-700" : "text-red-600"}>
+            {order.cod_collected ? "Cash collected" : "Cash not collected"}
+            {order.cod_collection_method ? ` · ${order.cod_collection_method}` : ""}
+          </span>
+        ) : (
+          <span className={order.is_paid ? "text-emerald-700" : "text-amber-600"}>
+            {order.is_paid ? "Paid" : "Payment pending"}
+          </span>
+        )}
+
+        {txnId && (
+          <span className="font-mono text-[10px] text-gray-500 break-all">
+            Txn: {txnId}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const cancelOrder = async (orderId, reason) => {
     // Update UI immediately (optimistic update)
-    setOrders(prev => prev.map(o => 
-      o.id === orderId ? { ...o, status: "cancelled" } : o
+    setOrders(prev => prev.map(o =>
+      o.id === orderId
+        ? { ...o, status: "cancelled", cancellation_reason: reason, cancelled_by: "Admin" }
+        : o
     ));
 
     try {
       const order = orders.find(o => o.id === orderId);
-      
+
+      // cancellation_reason was never written anywhere in the codebase, so every
+      // cancelled order showed a blank reason. Persist it (and who cancelled).
       await Order.update(orderId, {
-        status: "cancelled"
+        status: "cancelled",
+        cancellation_reason: reason,
+        cancelled_by: "Admin",
       });
 
       // ── Release reserved stock — does NOT deduct actual stock ─────────
@@ -685,6 +771,7 @@ export default function OrderManagement() {
                 <TableHead>Customer</TableHead>
                 <TableHead>Items</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Payment</TableHead>
                 <TableHead>Order Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Delivery Person</TableHead>
@@ -732,6 +819,9 @@ export default function OrderManagement() {
                       </div>
                     </TableCell>
                     <TableCell>₹{order.total_amount.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <PaymentCell order={order} />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-gray-400" />
@@ -832,7 +922,7 @@ export default function OrderManagement() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => cancelOrder(order.id)}
+                            onClick={() => { setCancelTarget(order); setCancelReason(""); }}
                             className="text-orange-600 hover:text-orange-700"
                           >
                             Cancel
@@ -871,6 +961,57 @@ export default function OrderManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Cancel reason — required so the reason is actually recorded */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Cancel order</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Order #{cancelTarget.order_number}
+            </p>
+
+            <div className="flex flex-wrap gap-2 mb-3">
+              {CANCEL_REASONS.map(r => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setCancelReason(r)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                    cancelReason === r
+                      ? "bg-orange-500 text-white border-orange-500"
+                      : "bg-white text-gray-600 border-gray-300 hover:border-orange-400"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+
+            <Input
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              placeholder="Reason (required)"
+              className="mb-4"
+            />
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => { setCancelTarget(null); setCancelReason(""); }}
+              >
+                Keep order
+              </Button>
+              <Button
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={confirmCancelOrder}
+              >
+                Cancel order
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

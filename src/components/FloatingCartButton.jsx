@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useNavigation } from "@/navigation/NavigationProvider";
+import { fetchByIds } from "@/lib/entity";
 
 export default function FloatingCartButton({ onCartStateChange }) {
   const navigate = useNavigate();
@@ -26,11 +27,10 @@ export default function FloatingCartButton({ onCartStateChange }) {
       const items = await base44.entities.CartItem.filter({ user_id: user.id });
       const count = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
+      // Batched: the floating cart sits on every page, so a per-item request here
+      // fires for every visitor and is a major source of request volume.
       const productIds = [...new Set(items.map((item) => item.product_id))].slice(0, 4);
-      const productPromises = productIds.map((id) =>
-        base44.entities.Product.filter({ id }).then((results) => results[0]).catch(() => null)
-      );
-      const productsData = await Promise.all(productPromises);
+      const productsData = await fetchByIds("products", productIds).catch(() => []);
 
       const productsMap = {};
       productsData.forEach((product) => {

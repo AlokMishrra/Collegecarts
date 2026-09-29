@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProductCard from "../components/shop/ProductCard";
 import { getDisplayStock } from "@/utils/hostelStockHelper";
+import { fetchByIds } from "@/lib/entity";
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -40,11 +41,9 @@ export default function Wishlist() {
       setWishlistItems(wishlist);
 
       if (wishlist.length > 0) {
+        // Batched: one request for the whole wishlist.
         const productIds = wishlist.map(item => item.product_id);
-        const productPromises = productIds.map(id => 
-          base44.entities.Product.filter({ id })
-        );
-        const productResults = await Promise.all(productPromises);
+        const productResults = await fetchByIds("products", productIds).catch(() => []);
         const loadedProducts = productResults.flat().filter(p => p.is_available);
         setProducts(loadedProducts);
       }

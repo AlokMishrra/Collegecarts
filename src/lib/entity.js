@@ -13,6 +13,32 @@
 
 import { supabase } from './supabase';
 
+/**
+ * Fetch many rows by id in ONE request.
+ *
+ * Cart, order and recommendation screens need the product behind each line item.
+ * Doing that with one filter({id}) call per item produces an N+1 request storm —
+ * a 20-item cart fired 20 Supabase queries, which is what caused the
+ * ERR_INSUFFICIENT_RESOURCES flood. This resolves the same data in a single
+ * `?id=in.(...)` request.
+ *
+ * @param {string} table
+ * @param {string[]} ids
+ * @returns {Promise<Array>} rows, empty if no ids
+ */
+export async function fetchByIds(table, ids) {
+  const unique = [...new Set((ids || []).filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from(table)
+    .select('*')
+    .in('id', unique);
+
+  if (error) throw error;
+  return data || [];
+}
+
 export class Entity {
   constructor(tableName) {
     this.table = tableName;

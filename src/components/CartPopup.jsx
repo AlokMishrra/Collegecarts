@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Minus, ShoppingBag, ChevronRight } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { fetchByIds } from "@/lib/entity";
 import { notifyCartUpdate } from "@/utils/cartEvents";
 import { toast } from "sonner";
 
@@ -120,12 +121,12 @@ export default function CartPopup() {
       const count = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
       setCartCount(count);
 
-      const productIds = [...new Set(items.map((item) => item.product_id))].slice(0, 20);
+      // One batched request instead of one per line item. Firing a filter per
+      // cart item produced an N+1 request storm that flooded the network panel
+      // with ERR_INSUFFICIENT_RESOURCES.
+      const productIds = [...new Set(items.map((item) => item.product_id))];
       if (productIds.length > 0) {
-        const productPromises = productIds.map((id) =>
-          base44.entities.Product.filter({ id }).then((r) => r[0]).catch(() => null)
-        );
-        const productsData = await Promise.all(productPromises);
+        const productsData = await fetchByIds("products", productIds).catch(() => []);
         const productsMap = {};
         productsData.forEach((p) => { if (p) productsMap[p.id] = p; });
         setProducts(productsMap);

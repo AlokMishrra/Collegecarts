@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
 import CompactProductCard from "@/components/shop/CompactProductCard";
+import { fetchByIds } from "@/lib/entity";
 
 export default function RecommendedProducts({ onAddToCart, cartItems, amountNeededForFreeDelivery }) {
   const [recommendedProducts, setRecommendedProducts] = useState([]);
@@ -15,10 +16,9 @@ export default function RecommendedProducts({ onAddToCart, cartItems, amountNeed
   const loadRecommendedProducts = async () => {
     try {
       // Get categories from current cart items
+      // Batched: one request for every cart product, not one per item.
       const cartProductIds = cartItems.map(item => item.product_id);
-      const cartProducts = await Promise.all(
-        cartProductIds.map(id => base44.entities.Product.filter({ id }).then(results => results[0]))
-      );
+      const cartProducts = await fetchByIds("products", cartProductIds).catch(() => []);
       const cartCategoryIds = [...new Set(cartProducts.map(p => p?.category_id).filter(Boolean))];
 
       // Get all products

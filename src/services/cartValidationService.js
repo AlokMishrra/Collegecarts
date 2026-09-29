@@ -9,6 +9,7 @@ import { CartItem } from '@/entities/CartItem';
 import { Product } from '@/entities/Product';
 import { stockService } from './stockService';
 import { toast } from 'sonner';
+import { fetchByIds } from "@/lib/entity";
 
 /**
  * Cart Validation Service Class
@@ -37,12 +38,10 @@ class CartValidationService {
       }
 
       // Get product details for all cart items
+      // Batched. This runs on every add-to-cart, and firing one request per cart
+      // item is a direct cause of the request pile-up that made adds fail.
       const productIds = cartItems.map(item => item.product_id);
-      const products = await Promise.all(
-        productIds.map(id => 
-          Product.filter({ id }).then(results => results[0]).catch(() => null)
-        )
-      );
+      const products = await fetchByIds("products", productIds).catch(() => []);
 
       // Create product map
       const productMap = {};

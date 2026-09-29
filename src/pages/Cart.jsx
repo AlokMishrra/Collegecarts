@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { fetchByIds } from "@/lib/entity";
 
 export default function Cart() {
   const { warning, error: showError } = useDialog();
@@ -231,11 +232,9 @@ export default function Cart() {
         return;
       }
 
+      // Batched: one request instead of up to 50.
       const productIds = [...new Set(items.map(item => item.product_id))].slice(0, 50);
-      const productPromises = productIds.map(id => 
-        Product.filter({ id }).then(results => results[0]).catch(() => null)
-      );
-      const productsData = await Promise.all(productPromises);
+      const productsData = await fetchByIds("products", productIds).catch(() => []);
       
       const productsMap = {};
       productsData.forEach(product => {

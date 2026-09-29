@@ -55,15 +55,12 @@ export default function FeedbackPopup({ user }) {
         setCurrentProductIndex(0);
 
         // Fetch product images for all items in this order
+        // Batched and concurrent. This was a sequential per-item loop, so a
+        // 10-item order fired 10 requests one after another.
         const imgMap = {};
-        for (const item of unreviewed[0].items || []) {
-          try {
-            const prods = await base44.entities.Product.filter({ id: item.product_id });
-            if (prods[0]?.image_url) {
-              imgMap[item.product_id] = prods[0].image_url;
-            }
-          } catch (_) {}
-        }
+        const itemIds = [...new Set((unreviewed[0].items || []).map(i => i.product_id))];
+        const prods = await fetchByIds("products", itemIds).catch(() => []);
+        prods.forEach(p => { if (p?.image_url) imgMap[p.id] = p.image_url; });
         setProductImages(imgMap);
         setShowFeedback(true);
       }

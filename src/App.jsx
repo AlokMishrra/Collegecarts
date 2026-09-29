@@ -367,8 +367,20 @@ function App() {
               </Router>
               <Toaster />
               <SonnerToaster position="top-center" richColors />
-              <VercelAnalytics />
-              <SpeedInsights />
+              {/* Vercel injects its analytics scripts from the Vercel edge
+                  network, so they only resolve when actually deployed there.
+                  import.meta.env.PROD is also true for a local `vite preview`
+                  (it serves a production build), which produced two 404s in the
+                  console on every page load. Gate on the real host instead:
+                  analytics still run in production and are skipped locally. */}
+              {import.meta.env.PROD &&
+                typeof window !== "undefined" &&
+                window.location.hostname !== "localhost" &&
+                window.location.hostname !== "127.0.0.1" && <VercelAnalytics />}
+              {import.meta.env.PROD &&
+                typeof window !== "undefined" &&
+                window.location.hostname !== "localhost" &&
+                window.location.hostname !== "127.0.0.1" && <SpeedInsights />}
               <VisualEditAgent />
             </QueryClientProvider>
           </AuthProvider>

@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Star, Check, X, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import ReviewAnalytics from "./ReviewAnalytics";
+import { fetchByIds } from "@/lib/entity";
 
 export default function ReviewModeration() {
   const [reviews, setReviews] = useState([]);
@@ -26,10 +27,8 @@ export default function ReviewModeration() {
 
       // Load product names
       const productIds = [...new Set(allReviews.map(r => r.product_id))];
-      const productPromises = productIds.map(id =>
-        base44.entities.Product.filter({ id }).then(results => results[0])
-      );
-      const productsData = await Promise.all(productPromises);
+      // Batched: one request instead of one per review row.
+      const productsData = await fetchByIds("products", productIds).catch(() => []);
       
       const productsMap = {};
       productsData.forEach(product => {
