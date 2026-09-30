@@ -17,15 +17,19 @@ archive/*
 
 # Scripts that may contain hardcoded credentials
 scripts/*.ps1
-scripts/*.mjs
-scripts/run-schema.mjs
 scripts/apply-schema.ps1
+scripts/run-schema.mjs
+scripts/migrate.mjs
 
-# ...but these two are part of the build/toolchain and contain no credentials.
-# scripts/gen-route-htmls.mjs is REQUIRED: `npm run build` runs it, so if it is
-# not committed a fresh clone (Vercel, CI, another machine) fails to build.
-!scripts/gen-route-htmls.mjs
-!scripts/gen-seo-images.mjs
+# Do NOT ignore scripts/*.mjs as a blanket rule. `npm run build` runs
+# scripts/gen-route-htmls.mjs and scripts/gen-sitemap.mjs, and `npm run dev`
+# depends on the vite config. When a new build script was added and silently
+# matched a blanket "scripts/*.mjs" ignore, it was never committed and Vercel
+# failed with:
+#   Error: Cannot find module '/vercel/path0/scripts/gen-sitemap.mjs'
+# Name the specific risky scripts above instead, and keep the pre-commit guard
+# in scripts/check-build-scripts.mjs, which fails if anything the build needs is
+# missing from git.
 
 # User data exports
 *.csv

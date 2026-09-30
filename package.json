@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/check-build-scripts.mjs",
     "dev": "vite",
     "build": "vite build && node scripts/gen-route-htmls.mjs && node scripts/gen-sitemap.mjs",
     "lint": "eslint . --quiet",
