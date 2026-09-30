@@ -46,10 +46,6 @@
   ],
   "rewrites": [
     {
-      "source": "/(AboutUs|CCA|Cart|Categories|CategoryProducts|ContactUs|Delivery|Home|Login|LoyaltyRewards|Orders|PrivacyPolicy|ProductDetails|Profile|Referral|RefundsCancellations|Shop|Subscription|TermsConditions|UserManagement|Wishlist|about|admin/errors|contact|forgot-password|login|meals|privacy|refunds|terms)",
-      "destination": "/index.html"
-    },
-    {
       "source": "/employee/:slug",
       "destination": "/index.html"
     },

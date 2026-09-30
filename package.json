@@ -108,5 +108,8 @@
     "terser": "^5.47.1",
     "typescript": "^5.8.2",
     "vite": "^6.1.0"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }
