@@ -124,13 +124,16 @@ const LayoutWrapper = ({ children }) => (
 );
 
 /**
- * HomeRoute — the root URL does double duty.
- * Anonymous visitors get a crawlable, content-rich landing page (this is the
- * page that must rank and that AI crawlers read without JavaScript).
- * Signed-in members land straight in the shop, exactly as before.
+ * HomeRoute — the root URL shows the shop.
+ *
+ * The root previously served a marketing landing page to anonymous visitors.
+ * That page is not wanted in search results, and opening the domain should land
+ * on the actual shop, so the root now renders the shop for everyone. The landing
+ * page still exists at /Landing, but it is noindex and carries no links from the
+ * site, so it cannot enter the index.
  */
 const HomeRoute = () => {
-  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings } = useAuth();
 
   if (isLoadingAuth || isLoadingPublicSettings) {
     return (
@@ -143,17 +146,13 @@ const HomeRoute = () => {
     );
   }
 
-  if (isAuthenticated) {
-    return (
-      <LayoutWrapper>
-        <RouteErrorBoundary>
-          <MainPage />
-        </RouteErrorBoundary>
-      </LayoutWrapper>
-    );
-  }
-
-  return <Landing />;
+  return (
+    <LayoutWrapper>
+      <RouteErrorBoundary>
+        <MainPage />
+      </RouteErrorBoundary>
+    </LayoutWrapper>
+  );
 };
 
 // Wraps children with NavigationProvider, passing user context
@@ -203,6 +202,8 @@ const AuthenticatedApp = () => {
       <Route path="/AboutUs" element={<LayoutWrapper currentPageName="About Us"><AboutUs /></LayoutWrapper>} />
       <Route path="/about" element={<Navigate to="/AboutUs" replace />} />
       <Route path="/Home" element={<Navigate to="/" replace />} />
+      {/* Marketing landing page: kept for reference, excluded from search. */}
+      <Route path="/Landing" element={<Landing />} />
 
       {/* ── Meals Module ── */}
       <Route path="/meals" element={

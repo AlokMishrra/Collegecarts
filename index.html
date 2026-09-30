@@ -368,27 +368,17 @@
       onerror="console.error('Razorpay script failed to load. Payment features may not work. Please check your internet connection.');"
     ></script>
     
-    <!-- Prerendered shell. Crawlers and AI agents that do not execute
-         JavaScript read the value proposition, navigation and key answers
-         straight from this markup, and it is the visible fallback if the
-         bundle ever fails to load. React clears this container on mount. -->
+    <!-- Prerendered shell.
+         The root URL serves the shop and is excluded from the index (the
+         canonical shop URL is /Shop), so this block is deliberately minimal: it
+         exists only so crawlers and agents that do not execute JavaScript can
+         discover the real pages. It is replaced the moment React mounts. -->
     <div id="root">
     <div style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;max-width:760px;margin:0 auto;padding:32px 20px;color:#0f172a;line-height:1.7;">
-      <h1 style="font-size:30px;line-height:1.25;margin:0 0 14px;">Groceries delivered to your hostel room in 10 minutes</h1>
-      <p style="margin:0 0 14px;">CollegeCart is a campus convenience store for college students. Order groceries, dairy, bread, eggs, snacks, cold drinks, instant food, personal care and everyday hostel essentials, and have them carried to your hostel block in about ten minutes. There is no minimum order value, prices are the MRP or lower, and stock on the shop page is refreshed every minute.</p>
-      <p style="margin:0 0 14px;">CollegeCart is live at <strong>Shivalik College</strong> and <strong>Quantum University</strong> in India, delivering to every hostel on campus. It was founded by <strong>Alok Mishra</strong> in 2026. Support: <a href="tel:+917248316506">+91 72483 16506</a> or <a href="mailto:contact@collegecarts.in">contact@collegecarts.in</a>.</p>
-
-      <h2 style="font-size:20px;margin:26px 0 8px;">How does the 10-minute delivery work?</h2>
-      <p style="margin:0 0 14px;">Orders are picked and packed from our own dark store rather than shipped from a distant warehouse, which is why delivery takes minutes instead of days. Choose your hostel and room once at checkout, pay by UPI, card, netbanking, wallet or cash, and follow the order on a live map until it reaches your door.</p>
-
-      <h2 style="font-size:20px;margin:26px 0 8px;">What can you order?</h2>
-      <p style="margin:0 0 14px;">Fruits and vegetables, atta, rice and dal, oil and masala, dairy and eggs, bread and bakery, chips and namkeen, chocolates and sweets, cold drinks and juices, tea and coffee, instant noodles and snacks, home and kitchen essentials, and personal care. Browse the full catalogue by category or search for a specific product.</p>
-
-      <h2 style="font-size:20px;margin:26px 0 8px;">What if an item is missing or damaged?</h2>
-      <p style="margin:0 0 20px;">Missing, damaged or incorrect items are refunded to your original payment method. Raise the request from the order screen in the app and support will respond during store hours.</p>
-
+      <h1 style="font-size:26px;line-height:1.25;margin:0 0 14px;">CollegeCart — 10-minute grocery delivery to your hostel</h1>
+      <p style="margin:0 0 20px;">Groceries, dairy, bread, snacks, cold drinks and everyday essentials, picked from our own campus store and carried to your hostel block in about ten minutes. No minimum order.</p>
       <nav aria-label="Primary" style="border-top:1px solid #e5e7eb;padding-top:16px;">
-        <h2 style="font-size:16px;margin:0 0 10px;">Site navigation</h2>
+        <h2 style="font-size:16px;margin:0 0 10px;">Shop and information</h2>
         <ul style="list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:10px 18px;font-size:15px;">
           <li><a href="/Shop">Shop all products</a></li>
           <li><a href="/Categories">Browse categories</a></li>

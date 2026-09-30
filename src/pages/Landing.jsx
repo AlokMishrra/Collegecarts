@@ -54,7 +54,7 @@ const LEGAL_LINKS = [
 ];
 
 export default function Landing() {
-  useSEO(ROUTE_META["/"]);
+  useSEO({ ...ROUTE_META["/"], noindex: true });
 
   return (
     <div className="min-h-screen bg-[#FFFBF5] text-slate-900">

@@ -3,18 +3,6 @@
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
   <url>
-    <loc>https://shop.collegecarts.in/</loc>
-    <lastmod>2026-09-28</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-    <image:image>
-      <image:loc>https://shop.collegecarts.in/og-image.jpg</image:loc>
-      <image:title>CollegeCart — 10-Minute Hostel Grocery Delivery</image:title>
-      <image:caption>Groceries and essentials delivered to your hostel room in 10 minutes</image:caption>
-    </image:image>
-  </url>
-
-  <url>
     <loc>https://shop.collegecarts.in/Shop</loc>
     <lastmod>2026-09-28</lastmod>
     <changefreq>daily</changefreq>

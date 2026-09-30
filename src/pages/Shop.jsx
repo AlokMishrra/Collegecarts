@@ -129,7 +129,10 @@ export default function Shop() {
 
   // ── Mount: load data + user + REALTIME stock updates ──────────
   useEffect(() => {
-    useSEO(ROUTE_META["/Shop"]);
+    // The root URL renders this same shop, so when we are on "/" the page must
+    // stay noindex — otherwise "/" and "/Shop" compete for the same content.
+    // /Shop itself stays indexable.
+    useSEO({ ...ROUTE_META["/Shop"], noindex: window.location.pathname === "/" });
 
     const abortController = new AbortController();
     checkUser();

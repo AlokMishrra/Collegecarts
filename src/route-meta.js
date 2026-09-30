@@ -23,6 +23,9 @@ const base = {
 export const ROUTE_META = {
   "/": {
     ...base,
+    // The root renders the same shop as /Shop, so it must not compete with it in
+    // the index. It stays crawlable so link equity and discovery flow through.
+    noindex: true,
     title: "CollegeCart — 10-Minute Hostel Grocery Delivery",
     description:
       "Order groceries, dairy, snacks and daily essentials and get them delivered to your hostel room in 10 minutes. Live at Shivalik College & Quantum University. No minimum order.",

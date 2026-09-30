@@ -32,6 +32,10 @@ const shellPath = join(distDir, "index.html");
 
 const ORIGIN = "https://shop.collegecarts.in";
 
+const ROBOTS_INDEX =
+  "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
+const ROBOTS_NOINDEX = "noindex, follow";
+
 if (!readFileSyncSafe(shellPath)) {
   console.error("gen-route-htmls: dist/index.html not found — run `vite build` first.");
   process.exit(1);
@@ -96,6 +100,14 @@ function applyMeta(html, meta, url) {
     out,
     /<link rel="canonical" href="[^"]*" \/>/,
     `<link rel="canonical" href="${canonical}" />`
+  );
+
+  // Honour a per-route noindex flag. Routes that duplicate another page (the
+  // root duplicates /Shop) must not be indexed, but stay crawlable.
+  out = replaceTag(
+    out,
+    /<meta name="robots" content="[^"]*" \/>/,
+    `<meta name="robots" content="${meta.noindex ? ROBOTS_NOINDEX : ROBOTS_INDEX}" />`
   );
 
   out = replaceTag(
