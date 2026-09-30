@@ -22,6 +22,10 @@
 --   2. Run the STEP 0 report and read it.
 --
 -- Run each step separately. Steps 1-3 are reversible; stop after any of them.
+--
+-- NOTE: order_id is uuid while SPLIT_PART() returns text, so every COALESCE
+-- over the two must cast to ::text, otherwise Postgres raises
+--   42804: COALESCE types uuid and text cannot be matched
 -- =============================================================================
 
 
@@ -31,7 +35,7 @@ WITH ranked AS (
   SELECT wt.id, wt.delivery_person_id, wt.amount, wt.description, wt.created_at,
          ROW_NUMBER() OVER (
            PARTITION BY wt.delivery_person_id,
-                        COALESCE(wt.order_id, SPLIT_PART(wt.description, '#', 2))
+                        COALESCE(wt.order_id::text, NULLIF(SPLIT_PART(wt.description, '#', 2), ''))
            ORDER BY wt.created_at ASC, wt.id ASC
          ) AS rn
   FROM wallet_transactions wt
@@ -59,7 +63,7 @@ WITH ranked AS (
   SELECT wt.id, wt.delivery_person_id, wt.amount, wt.description, wt.created_at,
          ROW_NUMBER() OVER (
            PARTITION BY wt.delivery_person_id,
-                        COALESCE(wt.order_id, SPLIT_PART(wt.description, '#', 2))
+                        COALESCE(wt.order_id::text, NULLIF(SPLIT_PART(wt.description, '#', 2), ''))
            ORDER BY wt.created_at ASC, wt.id ASC
          ) AS rn
   FROM wallet_transactions wt
@@ -85,7 +89,7 @@ WITH ranked AS (
   SELECT wt.id,
          ROW_NUMBER() OVER (
            PARTITION BY wt.delivery_person_id,
-                        COALESCE(wt.order_id, SPLIT_PART(wt.description, '#', 2))
+                        COALESCE(wt.order_id::text, NULLIF(SPLIT_PART(wt.description, '#', 2), ''))
            ORDER BY wt.created_at ASC, wt.id ASC
          ) AS rn
   FROM wallet_transactions wt
@@ -161,7 +165,7 @@ WHERE NOT EXISTS (
 -- Must show commission_rows = distinct_orders for every partner.
 SELECT delivery_person_id,
        COUNT(*)             AS commission_rows,
-       COUNT(DISTINCT COALESCE(order_id, SPLIT_PART(description, '#', 2))) AS distinct_orders,
+       COUNT(DISTINCT COALESCE(order_id::text, NULLIF(SPLIT_PART(description, '#', 2), ''))) AS distinct_orders,
        SUM(amount)          AS total_earnings
 FROM wallet_transactions
 WHERE type = 'delivery_earning'
