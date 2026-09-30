@@ -227,8 +227,13 @@ export default function Categories() {
         </button>
       </div>
 
-      {/* Intro copy */}
-      <div className="px-4 pb-1">
+      {/*
+       * SEO copy is kept in the DOM but hidden from view. `sr-only` clips it
+       * visually while leaving it in the accessibility tree, so screen readers
+       * and crawlers still read it. It occupies no space and never pushes the
+       * category grid around.
+       */}
+      <div className="sr-only">
         <p className="text-[13px] leading-relaxed text-gray-600">
           Every product on CollegeCart is grouped so you can find it in a few taps. Browse the sections below to move from daily groceries and fresh items to snacks, drinks and store favourites, then tap any card to open the full category, check live stock, and add items to your cart for delivery straight to your hostel door.
         </p>
@@ -258,6 +263,7 @@ export default function Categories() {
         </div>
       ))}
 
+      <div className="sr-only">
       {/* Per-group descriptions */}
       <section className="px-4 mt-9">
         <h2 className="text-[15px] md:text-[16px] font-bold text-gray-900 mb-3">What You'll Find in Each Section</h2>
@@ -292,7 +298,7 @@ export default function Categories() {
       <section className="mx-4 mt-6 mb-4 bg-[#FFFBF5] border border-emerald-200 rounded-2xl p-5">
         <h2 className="text-[15px] md:text-[16px] font-bold text-[#0c831f] mb-2">Delivery and Pricing</h2>
         <p className="text-[13px] leading-relaxed text-gray-700 mb-3">
-          Categories only help if the items are actually in stock. Every category is filled from our own dark store near campus, restocked daily, and priced at MRP or below it. There is no minimum order, so a single pack of biscuits counts as a complete order, and delivery to your hostel door is free above ₹500 — a ₹10–₹20 fee applies on smaller orders depending on your hostel location.
+          Categories only help if the items are actually in stock. Every category is filled from our own dark store near campus, restocked daily, and priced at MRP or below it. There is no minimum order, so a single pack of biscuits counts as a complete order, and delivery to your hostel door is free on orders above ₹500. Below that, a per-item delivery charge applies, so a small top-up basket is cheaper to add to than to order on its own.
         </p>
         <ul className="list-disc pl-5 text-[13px] leading-relaxed text-gray-700 space-y-1">
           <li>Most orders arrive at the hostel door in about 10 minutes.</li>
@@ -300,6 +306,7 @@ export default function Categories() {
           <li>Missing, damaged or wrong items are refunded to the original payment method.</li>
         </ul>
       </section>
+      </div>
 
       {categories.length === 0 && (
         <div className="text-center py-16 text-gray-500 text-sm">No categories found</div>
