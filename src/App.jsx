@@ -74,8 +74,10 @@ import { RouteSentinel } from '@/lib/useSEO';
 // Browsing (shop, categories, product detail) must work for anonymous
 // visitors: a login wall here hides the entire catalogue from crawlers and
 // from first-time users. Only transact/account surfaces stay behind auth.
+// Browsing and ordering both require a signed-in account: an unauthenticated
+// visitor is sent to /login, and login returns them to the page they wanted, so
+// they land back in the shop. Only the informational pages stay public.
 const PUBLIC_PAGES = new Set([
-  'Shop',
   'Categories',
   'CategoryProducts',
   'ProductDetails',
@@ -146,12 +148,17 @@ const HomeRoute = () => {
     );
   }
 
+  // The root shows the shop, so it sits behind the same auth wall as /Shop.
+  // RequireAuth redirects to /login carrying the original location, and login
+  // sends the user back here.
   return (
-    <LayoutWrapper>
-      <RouteErrorBoundary>
-        <MainPage />
-      </RouteErrorBoundary>
-    </LayoutWrapper>
+    <RequireAuth>
+      <LayoutWrapper>
+        <RouteErrorBoundary>
+          <MainPage />
+        </RouteErrorBoundary>
+      </LayoutWrapper>
+    </RequireAuth>
   );
 };
 

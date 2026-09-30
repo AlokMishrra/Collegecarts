@@ -21,10 +21,12 @@
  * Run as part of `npm run build`.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve, dirname, join } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROUTE_META, escapeAttr, escapeHtml } from "../src/route-meta.js";
+import { SPA_ROUTES } from "../spa-routes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const distDir = resolve(__dirname, "..", "dist");
@@ -44,6 +46,10 @@ if (!readFileSyncSafe(shellPath)) {
 const shell = readFileSync(shellPath, "utf8");
 
 let written = 0;
+// SPA_ROUTES entries have no leading slash ("Shop") while ROUTE_META keys do
+// ("/Shop"), so normalise before comparing — otherwise every SEO route looks
+// unhandled and gets clobbered by a noindex stub.
+const seoRoutes = new Set(Object.keys(ROUTE_META).filter((r) => r !== "/").map((r) => r.replace(/^\//, "")));
 
 for (const [route, meta] of Object.entries(ROUTE_META)) {
   const url = `${ORIGIN}${route === "/" ? "/" : route}`;
@@ -58,7 +64,26 @@ for (const [route, meta] of Object.entries(ROUTE_META)) {
   written += 1;
 }
 
-console.log(`gen-route-htmls: wrote ${written} prerendered route head(s) to dist/`);
+// ── Shell stubs for every remaining real route ────────────────────────────────
+// Vercel matches the filesystem before applying rewrites, so a route only works
+// if a file exists for it. Relying on a rewrite alternation proved fragile:
+// /login has no prerendered head, and the deployed site answered it with the
+// static 404 page. Emitting a noindex shell for each declared route means every
+// real URL resolves from the filesystem, and only genuinely unknown paths fall
+// through to 404.html.
+let stubs = 0;
+for (const route of SPA_ROUTES) {
+  if (route === "/" || seoRoutes.has(route)) continue;
+  const url = `${ORIGIN}/${route}`;
+  const target = join(distDir, `${route}.html`);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, applyMeta(shell, { noindex: true }, url));
+  stubs += 1;
+}
+
+console.log(
+  `gen-route-htmls: wrote ${written} prerendered head(s) and ${stubs} route shell(s) to dist/`
+);
 
 /* ------------------------------------------------------------------ */
 
