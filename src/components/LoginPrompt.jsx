@@ -23,6 +23,7 @@ import { X, LogIn, ShoppingBag, Clock } from "lucide-react";
 export default function LoginPrompt({
   open,
   onClose,
+  onContinueBrowsing,
   variant = "add-to-cart",
   productName,
   returnTo,
@@ -106,7 +107,7 @@ export default function LoginPrompt({
           {isWelcome ? (
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => (onContinueBrowsing ? onContinueBrowsing() : onClose?.())}
               className="w-full text-sm text-gray-500 hover:text-gray-700 py-2"
             >
               Continue browsing

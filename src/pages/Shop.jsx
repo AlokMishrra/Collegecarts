@@ -33,6 +33,7 @@ import EnhancedSearch      from "../components/shop/EnhancedSearch";
 import BannerCarousel      from "../components/shop/BannerCarousel";
 import ComboSection        from "../components/shop/ComboSection";
 import PromoPopup           from "../components/shop/PromoPopup";
+import { createPageUrl } from "@/utils";
 
 // ── Cart write debounce config ────────────────────────────────────────────
 // Batches rapid +/- taps into a single DB write per product.
@@ -132,14 +133,39 @@ export default function Shop() {
   // ── Rate limiter state ────────────────────────────────────────────────
   const rateLimitRef = useRef({ count: 0, windowStart: Date.now() });
 
-  // One-time invitation to sign in when a visitor arrives at the shop.
-  // Non-blocking, dismissible, and never shown twice in the same browser, so it
-  // reads as an invitation rather than an obstacle to browsing.
+  // Arrival sequence for a signed-out visitor:
+  //   1. a one-time invitation to sign in
+  //   2. on "Continue browsing", the hostel selector, because per-hostel stock
+  //      is what the catalogue is keyed on — without a hostel every product
+  //      looks out of stock and the shop is unusable
+  //   3. browsing that hostel's items, with login required only at the cart
+  const [hasChosenHostel, setHasChosenHostel] = useState(false);
+
+  // Selecting a hostel writes selected_hostel onto `user`, so an anonymous
+  // visitor also ends up with a `user` object. Auth checks must therefore key
+  // off the id, never off `user` being truthy, or a signed-out visitor would
+  // reach the cart write with an undefined user_id.
+  const isSignedIn = !!user?.id;
+
   useEffect(() => {
-    if (user || !shouldShowWelcomePrompt()) return;
+    if (isSignedIn || !shouldShowWelcomePrompt()) return;
     const t = setTimeout(() => setLoginPrompt({ variant: "welcome" }), 1500);
     return () => clearTimeout(t);
-  }, [user]);
+  }, [isSignedIn]);
+
+  // Ask for the hostel as soon as the visitor is known not to be signed in and
+  // has not already picked one, regardless of whether they saw the invitation.
+  useEffect(() => {
+    if (isSignedIn) return;
+    const t = setTimeout(() => {
+      // Never stack the hostel picker on top of the invitation: wait for it to
+      // be dismissed, otherwise it covers the button and traps the visitor.
+      if (!loginPrompt && !user?.selected_hostel && !hasChosenHostel) {
+        setShowHostelSelector(true);
+      }
+    }, shouldShowWelcomePrompt() ? 2400 : 400);
+    return () => clearTimeout(t);
+  }, [isSignedIn, hasChosenHostel, loginPrompt]);
 
   // ── Mount: load data + user + REALTIME stock updates ──────────
   useEffect(() => {
@@ -375,6 +401,7 @@ export default function Shop() {
   const handleHostelSelected = hostel => {
     console.log('[Shop] Hostel selected:', hostel);
     setShowHostelSelector(false);
+    setHasChosenHostel(true);
     setUser(prev => ({ ...prev, selected_hostel: hostel }));
     // The useEffect watching user.selected_hostel will handle the re-enrichment
     // No need to invalidate cache or reload here
@@ -684,13 +711,18 @@ export default function Shop() {
   }, [user]);
 
   const updateCartQuantity = useCallback(async (product, quantityChange) => {
-    // Ordering needs an account; browsing does not. Show the prompt and carry the
-    // product through so login lands them back on what they wanted.
-    if (!user) {
-      setLoginPrompt({
-        variant: "add-to-cart",
-        productName: product?.name,
-        returnTo: `/ProductDetails?id=${encodeURIComponent(product?.id || "")}`,
+    // Ordering needs an account; browsing does not. Go straight to the login
+    // page, carrying the product so the customer lands back on it afterwards
+    // rather than having lost the thing they were trying to buy.
+    if (!isSignedIn) {
+      markWelcomePromptSeen();
+      navigate(createPageUrl("login"), {
+        state: {
+          from: {
+            pathname: "/ProductDetails",
+            search: `?id=${encodeURIComponent(product?.id || "")}`,
+          },
+        },
       });
       return;
     }
@@ -946,6 +978,11 @@ export default function Shop() {
         variant={loginPrompt?.variant}
         productName={loginPrompt?.productName}
         returnTo={loginPrompt?.returnTo}
+        onContinueBrowsing={() => {
+          markWelcomePromptSeen();
+          setLoginPrompt(null);
+          setShowHostelSelector(true);
+        }}
         onClose={() => {
           if (loginPrompt?.variant === "welcome") markWelcomePromptSeen();
           setLoginPrompt(null);
