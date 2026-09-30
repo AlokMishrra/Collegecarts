@@ -54,11 +54,25 @@ if (critical.size === 0) {
 const missingOnDisk = [];
 const untracked = [];
 
+// Tracking can only be verified inside a git working tree. A `git archive`
+// export, a Docker COPY or a source tarball has no .git, and treating that as a
+// failure would break legitimate builds. Fall back to an existence-only check.
+let inGitTree = true;
+try {
+  execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd: root,
+    stdio: "ignore",
+  });
+} catch {
+  inGitTree = false;
+}
+
 for (const [rel, from] of critical) {
   if (!existsSync(join(root, rel))) {
     missingOnDisk.push(`${rel}  (referenced by "${from}")`);
     continue;
   }
+  if (!inGitTree) continue;
   let tracked = true;
   try {
     execFileSync("git", ["ls-files", "--error-unmatch", rel], {
@@ -73,7 +87,8 @@ for (const [rel, from] of critical) {
 
 if (missingOnDisk.length === 0 && untracked.length === 0) {
   console.log(
-    `check-build-scripts: ${critical.size} build script(s) present and tracked`
+    `check-build-scripts: ${critical.size} build script(s) present` +
+      (inGitTree ? " and tracked" : " (tracking not verifiable outside a git tree)")
   );
   process.exit(0);
 }
