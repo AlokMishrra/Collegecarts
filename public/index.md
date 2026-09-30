@@ -2,7 +2,7 @@
 
 CollegeCart is a campus convenience delivery platform in India. It delivers
 groceries, dairy, snacks and daily essentials to college hostel rooms in about
-**10 minutes**. Founded by **Alok Mishra** in 2026. Live at **Shivalik College**
+**10 minutes**. Founded by **Alok Mishra** in 2025. Live at **Shivalik College**
 and **Quantum University**.
 
 ## What you can order

@@ -43,7 +43,7 @@ const NOT_FOUND_HTML = `<!doctype html>
  * or it resolves to a file that actually exists on disk.
  */
 function spaNotFound() {
-  const middleware = (root, publicDir, outDir) => (req, res, next) => {
+  const middleware = (root, publicDir, outDir, servePrerendered) => (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next()
 
     let pathname
@@ -58,18 +58,26 @@ function spaNotFound() {
     if (pathname.includes('/node_modules/')) return next()
 
     if (isSpaPath(pathname)) {
-      // Mirror Vercel's cleanUrls: a prerendered per-route HTML (dist/Shop.html)
-      // is preferred over the shared shell, so the raw head is correct per URL.
-      const prerendered = resolve(outDir, `${pathname.replace(/^\/+/, "")}.html`)
-      if (prerendered.startsWith(outDir + '/')) {
-        try {
-          if (statSync(prerendered).isFile()) {
-            res.setHeader('Content-Type', 'text/html; charset=utf-8')
-            res.end(readFileSync(prerendered))
-            return
+      // Mirror Vercel's cleanUrls in preview only: a prerendered per-route file
+      // (dist/Shop.html) is preferred over the shared shell, so the raw head is
+      // correct per URL exactly as production serves it.
+      //
+      // This must NOT run under `vite dev`. Those files reference hashed
+      // production assets (/assets/js/index-<hash>.js) which do not exist in the
+      // dev server, so serving them 404s every chunk and React never mounts —
+      // the app dies at the boot splash. In dev we want the plain shell.
+      if (servePrerendered) {
+        const prerendered = resolve(outDir, `${pathname.replace(/^\/+/, "")}.html`)
+        if (prerendered.startsWith(outDir + '/')) {
+          try {
+            if (statSync(prerendered).isFile()) {
+              res.setHeader('Content-Type', 'text/html; charset=utf-8')
+              res.end(readFileSync(prerendered))
+              return
+            }
+          } catch {
+            /* fall through to the shared shell */
           }
-        } catch {
-          /* fall through to the shared shell */
         }
       }
       return next()
@@ -101,18 +109,22 @@ function spaNotFound() {
     res.end(NOT_FOUND_HTML)
   }
 
-  const withConfig = (server) => {
+  const withConfig = (server, servePrerendered) => {
     const cfg = server.config
-    return middleware(cfg.root, cfg.publicDir, resolve(cfg.root, cfg.build?.outDir || 'dist'))
+    return middleware(cfg.root, cfg.publicDir, resolve(cfg.root, cfg.build?.outDir || 'dist'), servePrerendered)
   }
 
   return {
     name: 'collegecart-spa-404',
+    // Dev must NOT serve the prerendered files: they reference hashed production
+    // assets that do not exist in the dev server, which produced a 404 storm and
+    // a "Page Loading Suspended" crash. Preview does serve them, so it matches
+    // what Vercel returns in production.
     configureServer(server) {
-      server.middlewares.use(withConfig(server))
+      server.middlewares.use(withConfig(server, false))
     },
     configurePreviewServer(server) {
-      server.middlewares.use(withConfig(server))
+      server.middlewares.use(withConfig(server, true))
     },
   }
 }

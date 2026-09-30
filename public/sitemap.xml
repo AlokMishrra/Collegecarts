@@ -1,59 +1,201 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://shop.collegecarts.in/Shop</loc>
-    <lastmod>2026-09-28</lastmod>
+    <loc>https://shop.collegecarts.in/</loc>
+    <lastmod>2026-09-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <image:image>
-      <image:loc>https://shop.collegecarts.in/hero-shop.jpg</image:loc>
-      <image:title>Shop groceries, snacks and essentials at CollegeCart</image:title>
-      <image:caption>Browse the full CollegeCart catalogue for 10-minute hostel delivery</image:caption>
-    </image:image>
   </url>
-
   <url>
-    <loc>https://shop.collegecarts.in/Categories</loc>
-    <lastmod>2026-09-28</lastmod>
+    <loc>https://shop.collegecarts.in/Shop</loc>
+    <lastmod>2026-09-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
-
+  <url>
+    <loc>https://shop.collegecarts.in/Categories</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
   <url>
     <loc>https://shop.collegecarts.in/AboutUs</loc>
-    <lastmod>2026-09-28</lastmod>
+    <lastmod>2026-09-30</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.6</priority>
   </url>
-
   <url>
     <loc>https://shop.collegecarts.in/ContactUs</loc>
-    <lastmod>2026-09-28</lastmod>
+    <lastmod>2026-09-30</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
   </url>
-
   <url>
     <loc>https://shop.collegecarts.in/TermsConditions</loc>
-    <lastmod>2026-09-28</lastmod>
+    <lastmod>2026-09-30</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.3</priority>
   </url>
-
   <url>
     <loc>https://shop.collegecarts.in/PrivacyPolicy</loc>
-    <lastmod>2026-09-28</lastmod>
+    <lastmod>2026-09-30</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.3</priority>
   </url>
-
   <url>
     <loc>https://shop.collegecarts.in/RefundsCancellations</loc>
-    <lastmod>2026-09-28</lastmod>
+    <lastmod>2026-09-30</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.3</priority>
   </url>
-
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=6945278f5e36dc769c62e13f&amp;categoryName=Raita%20%26%20Dahi</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=6942424bf8d5002de71353ea&amp;categoryName=Rice%20%26%20Pulao</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693d52ffe5ceabf40fd93861&amp;categoryName=Roti%20%26%20Paratha</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=694534a76d0e57387afad1fa&amp;categoryName=Sandwiches</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693c066fe0adb39df74bf7ac&amp;categoryName=Shakes%20%26%20Juices</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693a77ef1a391d19b5f53055&amp;categoryName=South%20Indian</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=69cdfbeec4ef67798648ccbb&amp;categoryName=Sweets</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=f17380dd-a5aa-4cf6-bbc2-b2097c4ac6aa&amp;categoryName=Extra%20Essentials</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=e99aa818-a459-4cec-89de-9f0f00499c29&amp;categoryName=Cakes%20%2C%20Chocolates%20%26%20Pastries%20</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=cdf97203-e2f8-4195-ac5f-2f7ae0f8b6fd&amp;categoryName=BetterBite%20From%20India</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693d680fa08e8413d81fc186&amp;categoryName=Cold%20Drinks</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=6885bbf34725104adf64ac85&amp;categoryName=Snacks%20%26%20Chips</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=69ecf8631f9e8c5717d4eb2c&amp;categoryName=Treats%20Corner</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693d1437268386acee4a3997&amp;categoryName=Veg%20Curries</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693aa927980f2ac97f054e74&amp;categoryName=Beverages</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=69467ac215fedb333ee523e6&amp;categoryName=Biryani</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693d6d83aa86e9de5743eb04&amp;categoryName=Burgers</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=694537aac2def1eeaf0b4224&amp;categoryName=Chaat%20%26%20Snacks</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=693aaf17c3da1ef8fa5024a1&amp;categoryName=Chinese%20%26%20Fast%20Food</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=6885bbf34725104adf64ac84&amp;categoryName=Dairy%20%26%20Eggs</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=fb5f9950-2eb5-49e7-b903-cb43ef41f145&amp;categoryName=Feminine%20Hygiene%20Products%20%E2%AD%90</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=69452e94975c681520ea7484&amp;categoryName=French%20Fries</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=69c616f922ef4048088e9aeb&amp;categoryName=Noodles%20%26%20Instant</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=6943d0d63ec530b4b953ca51&amp;categoryName=Paneer%20Dishes</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://shop.collegecarts.in/CategoryProducts?categoryId=694530e2454833b1bee327da&amp;categoryName=Pasta</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
 </urlset>

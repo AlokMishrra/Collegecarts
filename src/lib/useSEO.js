@@ -165,9 +165,9 @@ export function useSEO({
 }
 
 const NOINDEX_PREFIXES = [
-  // The root renders the same shop as /Shop, so indexing it would create two
-  // URLs competing for the same page. /Shop is the canonical one.
-  "/",
+  // "/" and "/Shop" are indexable. The root is kept noindex-free because the
+  // shop must be crawlable; the canonical for the root points at /Shop so the
+  // two do not compete.
   "/Landing",
   "/Cart", "/Orders", "/Profile", "/Wishlist", "/UserManagement", "/CCA",
   "/LoyaltyRewards", "/Subscription", "/Referral", "/Delivery", "/Home",

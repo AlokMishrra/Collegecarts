@@ -23,9 +23,6 @@ const base = {
 export const ROUTE_META = {
   "/": {
     ...base,
-    // The root renders the same shop as /Shop, so it must not compete with it in
-    // the index. It stays crawlable so link equity and discovery flow through.
-    noindex: true,
     title: "CollegeCart — 10-Minute Hostel Grocery Delivery",
     description:
       "Order groceries, dairy, snacks and daily essentials and get them delivered to your hostel room in 10 minutes. Live at Shivalik College & Quantum University. No minimum order.",
@@ -49,7 +46,7 @@ export const ROUTE_META = {
     ...base,
     title: "About CollegeCart — Founder & Campus Story",
     description:
-      "Learn who runs CollegeCart, why it was founded by Alok Mishra in 2026, and how 10-minute grocery delivery to college hostels actually works.",
+      "Learn who runs CollegeCart, why it was founded by Alok Mishra in 2025, and how 10-minute grocery delivery to college hostels actually works.",
     url: "/AboutUs",
   },
   "/ContactUs": {

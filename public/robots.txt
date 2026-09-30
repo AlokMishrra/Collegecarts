@@ -49,4 +49,5 @@ Allow: /
 
 # ── Sitemaps ───────────────────────────────────────────────────────────
 Sitemap: https://shop.collegecarts.in/sitemap.xml
+Sitemap: https://shop.collegecarts.in/sitemap-products.xml
 Sitemap: https://shop.collegecarts.in/sitemap-images.xml

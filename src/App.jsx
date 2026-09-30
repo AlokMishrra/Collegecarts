@@ -78,6 +78,7 @@ import { RouteSentinel } from '@/lib/useSEO';
 // visitor is sent to /login, and login returns them to the page they wanted, so
 // they land back in the shop. Only the informational pages stay public.
 const PUBLIC_PAGES = new Set([
+  'Shop',
   'Categories',
   'CategoryProducts',
   'ProductDetails',
@@ -148,17 +149,15 @@ const HomeRoute = () => {
     );
   }
 
-  // The root shows the shop, so it sits behind the same auth wall as /Shop.
-  // RequireAuth redirects to /login carrying the original location, and login
-  // sends the user back here.
+  // Browsing is open so the shop can be crawled and indexed, which is what the
+  // organic traffic depends on. An account is only required when the customer
+  // actually orders — see the login prompt in updateCartQuantity.
   return (
-    <RequireAuth>
-      <LayoutWrapper>
-        <RouteErrorBoundary>
-          <MainPage />
-        </RouteErrorBoundary>
-      </LayoutWrapper>
-    </RequireAuth>
+    <LayoutWrapper>
+      <RouteErrorBoundary>
+        <MainPage />
+      </RouteErrorBoundary>
+    </LayoutWrapper>
   );
 };
 

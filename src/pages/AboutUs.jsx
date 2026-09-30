@@ -24,8 +24,22 @@ export default function AboutUs() {
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold text-gray-900 mb-2">About CollegeCart</h1>
+
+      {/*
+        One-sentence entity definition, kept identical to the Organization
+        description in index.html and the "Short answer" block in llms.txt.
+        Answer engines lift a single clean sentence far more reliably than
+        prose spread across a page, and they cross-check the wording between
+        the JSON-LD, llms.txt and the visible page — so all three must match.
+      */}
+      <p className="text-lg text-gray-800 mb-4 font-medium leading-relaxed">
+        CollegeCart is an Indian quick commerce (q-commerce) brand founded by Alok
+        Mishra in 2025, delivering groceries and daily essentials to college hostel
+        rooms in about 10 minutes.
+      </p>
+
       <p className="text-gray-500 mb-8 text-sm leading-relaxed">
-        CollegeCart is India's fastest campus delivery service — built by students, for students. Founded by Alok Mishra in 2026, we deliver groceries, snacks, beverages, and daily essentials to your hostel room in 10 minutes, at student-friendly prices across India.
+        CollegeCart is India&apos;s fastest campus delivery service — built by students, for students. Founded by Alok Mishra in 2025, we deliver groceries, snacks, beverages, and daily essentials to your hostel room in 10 minutes, at student-friendly prices across India.
       </p>
 
       {/* Why CollegeCart Exists */}
@@ -51,8 +65,52 @@ export default function AboutUs() {
       {/* Where We Are Live */}
       <h2 className="text-2xl font-bold text-gray-900 mb-3">Where We Are Live</h2>
       <p className="text-gray-700 text-sm leading-relaxed mb-3">
-        CollegeCart was founded by Alok Mishra in 2026 and is live in Uttarakhand, India, at two campuses: Shivalik College, Dehradun, and Quantum University, Roorkee. Both run the same catalogue, pricing rules and refund policy, and we open a new campus only when we can stock and staff it properly.
+        CollegeCart was founded by Alok Mishra in 2025 and is live in Uttarakhand, India, at two campuses: Shivalik College, Dehradun, and Quantum University, Roorkee. Both run the same catalogue, pricing rules and refund policy, and we open a new campus only when we can stock and staff it properly.
       </p>
+
+      {/*
+        Written for people and search engines alike. This answers the questions
+        campus grocery delivery is actually searched for — which cities, which
+        hostels, how fast, what it costs — in one place, so the page can be
+        quoted whole rather than skimmed.
+      */}
+      <h2 className="text-2xl font-bold text-gray-900 mb-3">
+        Online Grocery Delivery on Campus in Dehradun and Roorkee
+      </h2>
+      <p className="text-gray-700 text-sm leading-relaxed mb-3">
+        CollegeCart is a campus grocery delivery service for students in
+        Dehradun and Roorkee. If you are looking for online grocery delivery near
+        Shivalik College or Quantum University, this is the service built for it:
+        a dark store on campus, a delivery rider on a bike, and your order at your
+        hostel door in about 10 minutes. We deliver to the hostel rooms themselves,
+        not a common room, so you do not have to walk down to collect.
+      </p>
+      <ul className="text-gray-700 text-sm leading-relaxed mb-3 list-disc pl-5 space-y-1">
+        <li>
+          <strong>Campuses live:</strong> Shivalik College (Dehradun) and
+          Quantum University (Roorkee), with all hostels on each campus
+          eligible.
+        </li>
+        <li>
+          <strong>Delivery time:</strong> about 10 minutes, door to door, at any
+          hour the store is open.
+        </li>
+        <li>
+          <strong>Minimum order:</strong> none. A single packet of biscuits is a
+          complete order.
+        </li>
+        <li>
+          <strong>Delivery charge:</strong> free on orders above ₹500; below that a
+          per-item charge applies, so a small top-up is cheaper to add to an
+          existing basket than to order alone.
+        </li>
+        <li>
+          <strong>What you can order:</strong> groceries, fruits and vegetables,
+          milk and dairy, bread and bakery, eggs, chips and snacks, chocolates,
+          cold drinks, tea and coffee, instant noodles, kitchen essentials and
+          personal care.
+        </li>
+      </ul>
 
       {/* What We Sell */}
       <h2 className="text-2xl font-bold text-gray-900 mb-3">What We Sell</h2>
@@ -102,7 +160,7 @@ export default function AboutUs() {
             
             <div itemProp="description">
               <p className="text-gray-700 text-sm leading-relaxed mb-3">
-                <span itemProp="name">Alok Mishra</span> founded <span itemProp="worksFor" itemScope itemType="https://schema.org/Organization"><span itemProp="name">CollegeCart</span></span> in 2026 with a vision to revolutionize campus delivery across India. As a student entrepreneur, Alok Mishra understood the challenges college students face in accessing daily essentials quickly and affordably.
+                <span itemProp="name">Alok Mishra</span> founded <span itemProp="worksFor" itemScope itemType="https://schema.org/Organization"><span itemProp="name">CollegeCart</span></span> in 2025 with a vision to revolutionize campus delivery across India. As a student entrepreneur, Alok Mishra understood the challenges college students face in accessing daily essentials quickly and affordably.
               </p>
               <p className="text-gray-700 text-sm leading-relaxed mb-3">
                 Under Alok Mishra's leadership, CollegeCart has grown to serve thousands of students at Shivalik College Dehradun and Quantum University Roorkee, delivering groceries, snacks, and daily essentials in just 10 minutes. His commitment to student-friendly pricing and lightning-fast delivery has made CollegeCart India's most trusted campus delivery platform.

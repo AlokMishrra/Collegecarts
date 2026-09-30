@@ -225,7 +225,7 @@ export default function Landing() {
               Who runs CollegeCart?
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              CollegeCart was founded by <strong>Alok Mishra</strong> in 2026 after
+              CollegeCart was founded by <strong>Alok Mishra</strong> in 2025 after
               watching classmates walk a kilometre for a packet of milk at 11pm. It
               is built and run by students who understand hostel life: small rooms,
               tight budgets and no patience for a two-day delivery window.

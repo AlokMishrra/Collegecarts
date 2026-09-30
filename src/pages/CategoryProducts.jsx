@@ -41,6 +41,13 @@ export default function CategoryProducts() {
         ? `Buy ${name.toLowerCase()} online at CollegeCart with about 10-minute delivery to your hostel room. Student-friendly prices, no minimum order.`
         : "Browse every CollegeCart category — fruits, dairy, snacks, beverages and daily essentials — with about 10-minute delivery to your hostel room.",
       type: "website",
+      // Pin the canonical to the category id, exactly as sitemap.xml lists it.
+      // Left to the live URL, /CategoryProducts?categoryId=x&categoryName=Beverages
+      // and the same page with a different name casing would each self-canonicalise
+      // and be indexed as duplicates of one another.
+      url: activeCategoryId
+        ? `/CategoryProducts?categoryId=${encodeURIComponent(activeCategoryId)}&categoryName=${encodeURIComponent(name)}`
+        : "/Categories",
     });
 
     const items = (products || []).slice(0, 30).map((p, i) => ({

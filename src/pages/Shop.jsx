@@ -13,6 +13,10 @@ import {
   deduplicatedFetch, invalidateCache,
 } from "@/utils/shopCache";
 import { enrichProductsWithHostelStock, getDisplayStock, isProductInStock as stockIsInStock } from "@/utils/hostelStockHelper";
+import LoginPrompt, {
+  shouldShowWelcomePrompt,
+  markWelcomePromptSeen,
+} from "@/components/LoginPrompt";
 import { toast } from "sonner";
 import { ShoppingBag } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -54,6 +58,7 @@ export default function Shop() {
   });
   const [isLoading, setIsLoading]               = useState(true);
   const [user, setUser]                         = useState(null);
+  const [loginPrompt, setLoginPrompt]           = useState(null);
   const [cartItems, setCartItems]               = useState([]);
   const [categorizedProducts, setCategorizedProducts] = useState({});
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -127,12 +132,18 @@ export default function Shop() {
   // ── Rate limiter state ────────────────────────────────────────────────
   const rateLimitRef = useRef({ count: 0, windowStart: Date.now() });
 
+  // One-time invitation to sign in when a visitor arrives at the shop.
+  // Non-blocking, dismissible, and never shown twice in the same browser, so it
+  // reads as an invitation rather than an obstacle to browsing.
+  useEffect(() => {
+    if (user || !shouldShowWelcomePrompt()) return;
+    const t = setTimeout(() => setLoginPrompt({ variant: "welcome" }), 1500);
+    return () => clearTimeout(t);
+  }, [user]);
+
   // ── Mount: load data + user + REALTIME stock updates ──────────
   useEffect(() => {
-    // The root URL renders this same shop, so when we are on "/" the page must
-    // stay noindex — otherwise "/" and "/Shop" compete for the same content.
-    // /Shop itself stays indexable.
-    useSEO({ ...ROUTE_META["/Shop"], noindex: window.location.pathname === "/" });
+    useSEO(ROUTE_META["/Shop"]);
 
     const abortController = new AbortController();
     checkUser();
@@ -673,7 +684,16 @@ export default function Shop() {
   }, [user]);
 
   const updateCartQuantity = useCallback(async (product, quantityChange) => {
-    if (!user) { navigate('/login'); return; }
+    // Ordering needs an account; browsing does not. Show the prompt and carry the
+    // product through so login lands them back on what they wanted.
+    if (!user) {
+      setLoginPrompt({
+        variant: "add-to-cart",
+        productName: product?.name,
+        returnTo: `/ProductDetails?id=${encodeURIComponent(product?.id || "")}`,
+      });
+      return;
+    }
     if (checkRateLimit()) return;
 
     // Always read the authoritative per-hostel figure. The product object in
@@ -920,6 +940,17 @@ export default function Shop() {
         {/* Promo popup — mobile only, admin-managed, CollegeCart green theme */}
         <PromoPopup />
       </div>
+
+      <LoginPrompt
+        open={!!loginPrompt}
+        variant={loginPrompt?.variant}
+        productName={loginPrompt?.productName}
+        returnTo={loginPrompt?.returnTo}
+        onClose={() => {
+          if (loginPrompt?.variant === "welcome") markWelcomePromptSeen();
+          setLoginPrompt(null);
+        }}
+      />
     </div>
   );
 }

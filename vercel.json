@@ -35,7 +35,7 @@
       ]
     },
     {
-      "source": "/(llms.txt|ai-catalog.json|sitemap.xml|sitemap-images.xml|robots.txt|site.webmanifest|manifest.json)",
+      "source": "/(llms.txt|ai-catalog.json|sitemap.xml|sitemap-products.xml|sitemap-images.xml|robots.txt|site.webmanifest|manifest.json)",
       "headers": [
         {
           "key": "Cache-Control",

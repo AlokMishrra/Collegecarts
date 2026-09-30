@@ -45,15 +45,127 @@ if (!readFileSyncSafe(shellPath)) {
 
 const shell = readFileSync(shellPath, "utf8");
 
+/**
+ * Per-route WebPage node.
+ *
+ * The shell carries the site-wide graph (Organization, Person, WebSite, ...).
+ * Each route additionally needs its own WebPage that (a) has a unique @id so
+ * pages never collapse into one another, (b) credits the founder as author and
+ * "about", and (c) carries a matching breadcrumb. Without this, founder
+ * attribution exists only on the homepage and the other seven pages are
+ * anonymous to a search engine.
+ */
+function buildPageSchema(meta, route, url) {
+  const heading = escapeHtml(meta.title || "CollegeCart");
+  const summary = escapeAttr(meta.description || "");
+  const isHome = route === "/";
+  const crumbs = isHome
+    ? [{ name: "Home", item: `${ORIGIN}/` }]
+    : [{ name: "Home", item: `${ORIGIN}/` }, { name: heading, item: url }];
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${url}#webpage`,
+    url,
+    name: meta.title || "CollegeCart",
+    description: meta.description || "",
+    isPartOf: { "@id": `${ORIGIN}/#website` },
+    about: { "@id": `${ORIGIN}/#organization` },
+    author: { "@id": `${ORIGIN}/#founder` },
+    inLanguage: "en-IN",
+    primaryImageOfPage: { "@id": `${ORIGIN}/#logo` },
+    breadcrumb: {
+      "@type": "BreadcrumbList",
+      itemListElement: crumbs.map((c, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: c.name,
+        item: c.item,
+      })),
+    },
+  };
+}
+
+/** Append a script tag carrying the per-route node, before </body>. */
+function injectPageSchema(html, node) {
+  if (html.includes('id="route-page-schema"')) return html;
+  const tag = `<script type="application/ld+json" id="route-page-schema">\n${JSON.stringify(
+    node,
+    null,
+    2
+  )}\n<\/script>\n</body>`;
+  return html.replace("</body>", tag);
+}
+
+
+/**
+ * Prerendered body copy, unique per route.
+ *
+ * React clears #root on mount, so visitors only ever see the live app — this
+ * block exists purely for fetchers that do not execute JavaScript (GPTBot,
+ * PerplexityBot, and most of the AI answer engines). It is built from the same
+ * title/description the route declares, so the raw text, the meta tags and the
+ * rendered page cannot disagree. Before this, every non-JS fetch saw the same
+ * generic 70-word shell, which reads as thin content to an answer engine.
+ */
+function buildShell(meta, route) {
+  const heading = escapeHtml(meta.title || "CollegeCart");
+  const summary = escapeHtml(meta.description || "");
+  const isHome = route === "/";
+  const label = isHome
+    ? "Groceries, dairy, snacks and daily essentials delivered to college hostel rooms in about 10 minutes. No minimum order."
+    : summary;
+
+  return `    <div id="root">
+    <div style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;max-width:760px;margin:0 auto;padding:32px 20px;color:#0f172a;line-height:1.7;">
+      <h1 style="font-size:26px;line-height:1.25;margin:0 0 14px;">${heading}</h1>
+      <p style="margin:0 0 14px;">${label}</p>
+      ${summary && !isHome ? `<p style="margin:0 0 20px;">${summary}</p>` : ""}
+      <p style="margin:0 0 20px;">CollegeCart is an Indian quick commerce (q-commerce) brand founded by Alok Mishra in 2025. It runs campus dark stores at Shivalik College in Dehradun and Quantum University in Roorkee, Uttarakhand, and delivers groceries, milk, bread, eggs, snacks, cold drinks, instant food, kitchen and personal care to hostel rooms in about 10 minutes. Support: +91 72483 16506, contact@collegecarts.in.</p>
+      <nav aria-label="Primary" style="border-top:1px solid #e5e7eb;padding-top:16px;">
+        <h2 style="font-size:16px;margin:0 0 10px;">Shop and information</h2>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:10px 18px;font-size:15px;">
+          <li><a href="/Shop">Shop all products</a></li>
+          <li><a href="/Categories">Browse categories</a></li>
+          <li><a href="/AboutUs">About CollegeCart</a></li>
+          <li><a href="/ContactUs">Contact &amp; support</a></li>
+          <li><a href="/TermsConditions">Terms &amp; conditions</a></li>
+          <li><a href="/PrivacyPolicy">Privacy policy</a></li>
+          <li><a href="/RefundsCancellations">Refunds &amp; cancellations</a></li>
+        </ul>
+      </nav>
+    </div>
+    </div>
+`;
+}
+
+/** Replace the whole #root subtree, bounded by the splash comment that follows it. */
+function replaceRoot(html, meta, route) {
+  const start = html.indexOf('<div id="root">');
+  if (start === -1) throw new Error("gen-route-htmls: no #root in shell");
+  const endMarker = "<!-- Branded splash";
+  const end = html.indexOf(endMarker, start);
+  if (end === -1) throw new Error("gen-route-htmls: cannot find end of #root");
+  return html.slice(0, start) + buildShell(meta, route) + "\n    " + html.slice(end);
+}
+
+
 let written = 0;
 // SPA_ROUTES entries have no leading slash ("Shop") while ROUTE_META keys do
 // ("/Shop"), so normalise before comparing — otherwise every SEO route looks
 // unhandled and gets clobbered by a noindex stub.
 const seoRoutes = new Set(Object.keys(ROUTE_META).filter((r) => r !== "/").map((r) => r.replace(/^\//, "")));
 
+/** Fall back to the home copy for routes that are not SEO destinations. */
+const metaFor = (route) => ROUTE_META[`/${route}`] || ROUTE_META["/"];
+
 for (const [route, meta] of Object.entries(ROUTE_META)) {
   const url = `${ORIGIN}${route === "/" ? "/" : route}`;
-  const html = applyMeta(shell, meta, url);
+  const html = injectPageSchema(
+    replaceRoot(applyMeta(shell, meta, url), meta, route),
+    buildPageSchema(meta, route, url)
+  );
   if (route === "/") {
     // The shell itself is the homepage; write the corrected head back to it.
     writeFileSync(shellPath, html);
@@ -77,7 +189,7 @@ for (const route of SPA_ROUTES) {
   const url = `${ORIGIN}/${route}`;
   const target = join(distDir, `${route}.html`);
   mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, applyMeta(shell, { noindex: true }, url));
+  writeFileSync(target, replaceRoot(applyMeta(shell, { noindex: true }, url), metaFor(route), route));
   stubs += 1;
 }
 
