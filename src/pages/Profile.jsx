@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Award, Star, TrendingUp, Gift, History, Trophy, Package, MapPin, Heart, User as UserIcon, Edit2, Plus, Trash2, Building2, Camera, Crown } from "lucide-react";
+import { Award, Star, TrendingUp, Gift, History, Trophy, Package, MapPin, Heart, User as UserIcon, Edit2, Plus, Trash2, Building2, Camera, Crown, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -32,6 +32,7 @@ export default function Profile() {
   const [totalEarned, setTotalEarned] = useState(0);
   const [totalRedeemed, setTotalRedeemed] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showAddressDialog, setShowAddressDialog] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [addressForm, setAddressForm] = useState({
@@ -220,6 +221,30 @@ export default function Profile() {
       });
     } catch (error) {
       console.error("Error saving address:", error);
+    }
+  };
+
+  // Mobile has no room for the header icon or the sidebar link, so the profile
+  // page carries its own way out. Confirm first, since signing out discards the
+  // session and User.logout() sends the browser back to the landing page.
+  const handleLogout = async () => {
+    const confirmed = await confirm(
+      "Are you sure you want to log out of CollegeCart?",
+      "Log Out"
+    );
+    if (!confirmed) return;
+
+    setIsLoggingOut(true);
+    try {
+      // Drop anything the previous account left behind in this tab.
+      try {
+        localStorage.removeItem('cartItems');
+        localStorage.removeItem('deliveryPerson');
+      } catch {}
+      await User.logout();
+    } catch (error) {
+      console.error("Error logging out:", error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -454,6 +479,27 @@ export default function Profile() {
           </div>
 
           <NotificationPreferences />
+
+          {/* Logout — mobile only. From sm up the header icon and the sidebar
+              link already cover it, so this stays out of the way on desktop.
+              Sits above the Danger Zone so that stays the last thing on the
+              page, where an accidental tap is least likely. */}
+          <div className="sm:hidden">
+            <Card>
+              <CardContent className="p-4">
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  aria-label="Log out of CollegeCart"
+                  className="w-full h-11 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 active:bg-red-100"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  {isLoggingOut ? 'Logging out...' : 'Log Out'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Account Deletion Section */}
           <Card className="border-2 border-red-200 bg-red-50/50">
