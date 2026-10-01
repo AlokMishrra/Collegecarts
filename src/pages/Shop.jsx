@@ -726,7 +726,12 @@ export default function Shop() {
       });
       return;
     }
-    if (checkRateLimit()) return;
+    // checkRateLimit() returns true when the action is ALLOWED, so this must
+    // bail out when it returns false. The old `if (checkRateLimit()) return;`
+    // inverted the test: it discarded every valid tap and only let a tap
+    // through once the user had been rate-limited, which is why ADD silently
+    // did nothing.
+    if (!checkRateLimit()) return;
 
     // Always read the authoritative per-hostel figure. The product object in
     // state can be stale, and getHostelStock now refuses to invent stock that the
