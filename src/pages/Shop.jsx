@@ -79,12 +79,6 @@ export default function Shop() {
   const observerTarget            = useRef(null);
   const PRODUCTS_PER_PAGE         = 12;
   
-  // Ref to keep cartItems stable for getCartQuantity callback to prevent cascading re-renders
-  const cartItemsRef = useRef(cartItems);
-  useEffect(() => {
-    cartItemsRef.current = cartItems;
-  }, [cartItems]);
-
   // Ref for stock polling to avoid stale closure
   const productsRef = useRef(products);
   useEffect(() => { productsRef.current = products; }, [products]);
@@ -121,10 +115,18 @@ export default function Shop() {
     setSearchQuery(value);
   }, []);
 
+  // Derived from state on purpose. This used to read cartItemsRef.current, but
+  // the ref was only synced in an effect, so the render that follows
+  // setCartItems() still saw the previous cart: product cards painted stale
+  // steppers and nothing re-rendered them afterwards, because a ref write
+  // schedules no render. That is why removing an item in the cart left the
+  // Shop card still showing a quantity instead of reverting to ADD.
+  // Depending on cartItems gives the children a new value whenever the cart
+  // really does change, which is the re-render they need.
   const getCartQuantity = useCallback(productId => {
-    const item = cartItemsRef.current.find(i => i.product_id === productId);
+    const item = cartItems.find(i => i.product_id === productId);
     return item ? item.quantity : 0;
-  }, []);
+  }, [cartItems]);
 
   // ── Debounced cart write refs ─────────────────────────────────────────
   // pendingCart: { [productId]: { quantity, timer, existingItemId } }
@@ -605,6 +607,37 @@ export default function Shop() {
     }
   };
 
+  // Keep this page's copy of the cart in step with changes made elsewhere,
+  // e.g. removing an item or dropping the quantity to zero on the Cart page.
+  // Without this, Shop kept the stale quantity it had loaded on mount, so a
+  // product removed in the cart still showed its +/− stepper here instead of
+  // reverting to "ADD".
+  const cartUserId = user?.id;
+  const cartRefreshTimer = useRef(null);
+  useEffect(() => {
+    if (!cartUserId) return;
+
+    // Our own writes already applied optimistically and flushed on a debounce;
+    // refetching on them would race that write and could flash the card back to
+    // "ADD" before the row exists. Only react to updates from other pages.
+    const onCartUpdated = (event) => {
+      if (event?.detail?.source === 'shop') return;
+      clearTimeout(cartRefreshTimer.current);
+      cartRefreshTimer.current = setTimeout(() => {
+        loadCartItems(cartUserId);
+        // The other page announces the change before its write has finished, so
+        // the first read can still see the old row. Settle with a second read.
+        cartRefreshTimer.current = setTimeout(() => loadCartItems(cartUserId), 700);
+      }, 250);
+    };
+
+    window.addEventListener('cartUpdated', onCartUpdated);
+    return () => {
+      clearTimeout(cartRefreshTimer.current);
+      window.removeEventListener('cartUpdated', onCartUpdated);
+    };
+  }, [cartUserId]);
+
   // ── Rate limiter ──────────────────────────────────────────────────────
   const checkRateLimit = useCallback(() => {
     const rl = rateLimitRef.current;
@@ -640,7 +673,7 @@ export default function Shop() {
           .eq('user_id', user.id);
 
         if (deleteErr) throw deleteErr;
-        notifyCartUpdate();
+        notifyCartUpdate('shop');
       } else {
         // Use the id we already know about. Re-querying introduced a race and,
         // worse, the old code did `.catch(() => [])` on the lookup: a failed read
@@ -689,7 +722,7 @@ export default function Shop() {
               : item
           ));
         }
-        notifyCartUpdate();
+        notifyCartUpdate('shop');
       }
       
       // Silent background sync - don't reload immediately to prevent flicker
@@ -767,13 +800,13 @@ export default function Shop() {
     if (newQty <= 0) {
       // Remove item immediately
       setCartItems(prev => prev.filter(i => i.product_id !== product.id));
-      notifyCartUpdate();
+      notifyCartUpdate('shop');
     } else if (existingItem) {
       // Update existing item immediately
       setCartItems(prev => prev.map(i =>
         i.product_id === product.id ? { ...i, quantity: newQty } : i
       ));
-      notifyCartUpdate();
+      notifyCartUpdate('shop');
     } else {
       // Add new item immediately
       setCartItems(prev => [...prev, {
@@ -785,7 +818,7 @@ export default function Shop() {
         price:        product.price,
         created_date: new Date().toISOString(),
       }]);
-      notifyCartUpdate();
+      notifyCartUpdate('shop');
     }
 
     // ── Optimistic stock update in products list ──────────────
@@ -876,7 +909,7 @@ export default function Shop() {
             if (existing) await CI.update(existing.id, { quantity: existing.quantity + 1 });
             else await CI.create({ product_id: pid, user_id: user.id, quantity: 1 });
           }
-          notifyCartUpdate();
+          notifyCartUpdate('shop');
           loadCartItems(user.id);
         }} />
 
