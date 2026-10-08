@@ -46,15 +46,11 @@
   ],
   "rewrites": [
     {
-      "source": "/employee/:slug",
+      "source": "/employee",
       "destination": "/index.html"
     },
     {
-      "source": "/employee/:slug/:section",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/employee/:slug/:section/:id",
+      "source": "/employee/(.*)",
       "destination": "/index.html"
     }
   ],
