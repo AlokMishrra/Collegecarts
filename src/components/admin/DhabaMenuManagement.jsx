@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import * as XLSX from "xlsx";
 
 export default function DhabaMenuManagement() {
   const [menuItems, setMenuItems] = useState([]);
@@ -149,6 +148,8 @@ export default function DhabaMenuManagement() {
     }
 
     try {
+      // xlsx is ~140 KB gzipped and only needed for a spreadsheet upload.
+      const XLSX = await import("xlsx");
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -191,6 +192,8 @@ export default function DhabaMenuManagement() {
     if (!file) return;
 
     try {
+      // xlsx is ~140 KB gzipped and only needed for a spreadsheet upload.
+      const XLSX = await import("xlsx");
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];

@@ -202,10 +202,8 @@ export default defineConfig({
           if (id.includes('node_modules/framer-motion/')) {
             return 'animation-vendor';
           }
-          // Charts - only needed on specific pages
-          if (id.includes('node_modules/recharts/') || id.includes('node_modules/d3-') || id.includes('node_modules/victory-')) {
-            return 'chart-vendor';
-          }
+          // recharts/d3 are reached only from lazy admin pages (analytics,
+          // CRM, meals). Not force-chunked — see the note on heavy libs below.
           // Supabase
           if (id.includes('node_modules/@supabase/')) {
             return 'supabase-vendor';
@@ -214,19 +212,14 @@ export default defineConfig({
           if (id.includes('node_modules/react-hook-form/') || id.includes('node_modules/@hookform/') || id.includes('node_modules/zod/')) {
             return 'form-vendor';
           }
-          // Heavy libs - lazy loaded
-          if (id.includes('node_modules/xlsx/')) {
-            return 'xlsx-vendor';
-          }
-          if (id.includes('node_modules/html2canvas/') || id.includes('node_modules/jspdf/')) {
-            return 'pdf-vendor';
-          }
-          if (id.includes('node_modules/qrcode/')) {
-            return 'qrcode-vendor';
-          }
-          if (id.includes('node_modules/bcryptjs/')) {
-            return 'crypto-vendor';
-          }
+          // Heavy libs (xlsx, jspdf/html2canvas, qrcode, bcryptjs) are all
+          // reached only through dynamic import() now that pages are lazy and
+          // the export/PDF/QR handlers import on demand. They are deliberately
+          // NOT assigned a manual chunk: forcing them into a named chunk made
+          // Rollup treat them as part of the entry's static import graph, so
+          // Vite emitted <link rel=modulepreload> for each and the browser
+          // downloaded ~410 KB gz of admin-only code on first paint. Rollup's
+          // default splitting keeps them in the lazy chunks that request them.
           // Tanstack query
           if (id.includes('node_modules/@tanstack/')) {
             return 'query-vendor';

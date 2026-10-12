@@ -18,8 +18,6 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Product } from "@/entities/Product";
-import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
 import { base44 } from "@/api/base44Client";
 import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 
@@ -324,7 +322,9 @@ export default function Orders() {
     ['delivered', 'cancelled', 'refunded'].includes(order.status)
   ));
 
-  const exportToPDF = (ordersList, fileName) => {
+  const exportToPDF = async (ordersList, fileName) => {
+    // Loaded on demand — see the note in exportToExcel.
+    const { jsPDF } = await import("jspdf");
     const doc = new jsPDF();
     
     doc.setFontSize(20);
@@ -362,7 +362,7 @@ export default function Orders() {
     doc.save(`${fileName}.pdf`);
   };
 
-  const exportToExcel = (ordersList, fileName) => {
+  const exportToExcel = async (ordersList, fileName) => {
     const data = ordersList.map(order => ({
       'Order Number': order.order_number,
       'Customer Name': order.customer_name,
@@ -376,6 +376,10 @@ export default function Orders() {
       'Items': order.items.map(item => `${item.product_name} x${item.quantity}`).join(', ')
     }));
     
+    // jspdf + xlsx are ~300 KB gzipped combined and are only needed when the
+    // user actually clicks an export button. Loading them on demand removes
+    // them from the entry chunk and from the modulepreload list.
+    const XLSX = await import("xlsx");
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Orders');

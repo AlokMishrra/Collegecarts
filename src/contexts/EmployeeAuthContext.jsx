@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import bcrypt from 'bcryptjs';
 
 const EmployeeAuthContext = createContext();
 
@@ -111,6 +110,9 @@ export const EmployeeAuthProvider = ({ children }) => {
       }
 
       // Verify password
+      // Loaded on demand: bcryptjs is only needed once, at login, and this
+      // module is part of the eager app shell.
+      const { default: bcrypt } = await import('bcryptjs');
       const passwordMatch = await bcrypt.compare(password, employeeData.password_hash);
       if (!passwordMatch) {
         throw new Error('Invalid credentials');

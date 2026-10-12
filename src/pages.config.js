@@ -47,21 +47,38 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import CCA from './pages/CCA';
-import Cart from './pages/Cart';
-import Categories from './pages/Categories';
-import CategoryProducts from './pages/CategoryProducts';
-import Delivery from './pages/Delivery';
-import Home from './pages/Home';
-import LoyaltyRewards from './pages/LoyaltyRewards';
-import Orders from './pages/Orders';
-import ProductDetails from './pages/ProductDetails';
-import Profile from './pages/Profile';
-import Shop from './pages/Shop';
-import UserManagement from './pages/UserManagement';
-import Wishlist from './pages/Wishlist';
-import Subscription from './pages/Subscription';
+import { lazy } from 'react';
 import __Layout from './Layout.jsx';
+
+// ---------------------------------------------------------------------------
+// LAZY PAGE REGISTRATION
+//
+// These were static `import X from './pages/X'` statements. Because the entry
+// chunk statically referenced every page, the bundler had to inline all of
+// them, so a customer landing on /Shop downloaded Cart, Orders, Profile,
+// ProductDetails, UserManagement, Delivery, LoyaltyRewards and Wishlist in the
+// same request — along with whatever heavy libraries those pages import
+// (xlsx, jspdf, recharts).
+//
+// `lazy()` keeps the exact same component names and the same PAGES map shape
+// while moving each page into its own chunk, fetched only when that route is
+// actually visited. Consumers (App.jsx) already render these inside a
+// <Suspense> boundary, so no call site changes.
+// ---------------------------------------------------------------------------
+const CCA = lazy(() => import('./pages/CCA'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Categories = lazy(() => import('./pages/Categories'));
+const CategoryProducts = lazy(() => import('./pages/CategoryProducts'));
+const Delivery = lazy(() => import('./pages/Delivery'));
+const Home = lazy(() => import('./pages/Home'));
+const LoyaltyRewards = lazy(() => import('./pages/LoyaltyRewards'));
+const Orders = lazy(() => import('./pages/Orders'));
+const ProductDetails = lazy(() => import('./pages/ProductDetails'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Shop = lazy(() => import('./pages/Shop'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const Wishlist = lazy(() => import('./pages/Wishlist'));
+const Subscription = lazy(() => import('./pages/Subscription'));
 
 
 export const PAGES = {

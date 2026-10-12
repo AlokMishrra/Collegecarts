@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useNavigation } from "@/navigation/NavigationProvider";
 import { fetchByIds } from "@/lib/entity";
+import { usePolling } from "@/hooks/usePolling";
 
 export default function FloatingCartButton({ onCartStateChange }) {
   const navigate = useNavigate();
@@ -63,10 +64,22 @@ export default function FloatingCartButton({ onCartStateChange }) {
     return () => window.removeEventListener("cartUpdated", handler);
   }, [loadCartCount]);
 
-  useEffect(() => {
-    const interval = setInterval(loadCartCount, 1000);
-    return () => clearInterval(interval);
-  }, [loadCartCount]);
+  // ── Cart count refresh ────────────────────────────────────────────────
+  // WAS: `setInterval(loadCartCount, 1000)` — unconditional. One DB read plus
+  // one product lookup, twice a second, on every page, including hidden tabs.
+  // For a user who loaded the shop and walked away this alone generated ~120
+  // requests/minute forever.
+  //
+  // NOW: bounded, visibility-aware polling through the shared policy hook.
+  // The count is still updated instantly from local mutations because every
+  // cart write already dispatches `cartUpdated`, and the listener above reacts
+  // to it. The interval only exists as a slow fallback for a cart changed on
+  // another device. 30 s is the slowest interval in the app on purpose.
+  usePolling(loadCartCount, {
+    intervalMs: 30000,
+    immediate: false,
+    enabled: !!user?.id && !isOnCartPage,
+  });
 
   useEffect(() => {
     if (isOnCartPage) {

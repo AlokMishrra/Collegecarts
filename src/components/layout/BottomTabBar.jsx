@@ -4,6 +4,7 @@ import { ShoppingBag, ShoppingCart, Package, User, Truck, Settings, Crown } from
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
+import { usePolling } from "@/hooks/usePolling";
 
 export default function BottomTabBar() {
   const navigate = useNavigate();
@@ -19,14 +20,22 @@ export default function BottomTabBar() {
     checkDeliveryPartner();
   }, []);
 
+  // WAS: `setInterval(loadCartCount, 3000)` — an unconditional DB read of the
+  // whole cart every 3 s, in a hidden tab included. Every cart write already
+  // emits the `cartUpdated` event, so subscribe to that and keep only a slow
+  // fallback for cross-device changes.
   useEffect(() => {
-    if (user) {
-      loadCartCount();
-      // Set up real-time cart updates
-      const interval = setInterval(loadCartCount, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+    if (!user) return;
+    const handler = () => { void loadCartCount(); };
+    window.addEventListener("cartUpdated", handler);
+    return () => window.removeEventListener("cartUpdated", handler);
+  }, [user, loadCartCount]);
+
+  usePolling(loadCartCount, {
+    intervalMs: 30000,
+    immediate: false,
+    enabled: !!user,
+  });
 
   const checkUser = async () => {
     try {

@@ -1,44 +1,61 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createHmac } from "https://deno.land/std@0.177.0/node/crypto.ts";
+import { timingSafeEqual, hmacSha256Hex } from "../_shared/auth.ts";
 
 const RAZORPAY_WEBHOOK_SECRET = Deno.env.get("RAZORPAY_WEBHOOK_SECRET");
 
+/** Privacy-safe log: never secrets, never full provider payloads. */
+function log(...args: unknown[]) {
+  console.log("[razorpay-webhook]", ...args);
+}
+
 serve(async (req) => {
-  console.log("=== Razorpay Webhook Received ===");
-  console.log("Method:", req.method);
-  console.log("Headers:", Object.fromEntries(req.headers.entries()));
-  
+  log("webhook received, method:", req.method);
+
   try {
     const signature = req.headers.get("x-razorpay-signature");
     const body = await req.text();
-    
-    console.log("Body length:", body.length);
-    console.log("Signature:", signature);
-    console.log("Webhook secret configured:", !!RAZORPAY_WEBHOOK_SECRET);
 
-    // Verify webhook signature only if secret is configured
-    if (RAZORPAY_WEBHOOK_SECRET && signature) {
-      const expectedSignature = createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
-        .update(body)
-        .digest("hex");
-
-      console.log("Expected signature:", expectedSignature);
-      console.log("Received signature:", signature);
-
-      if (signature !== expectedSignature) {
-        console.error("❌ Invalid signature - signatures don't match");
-        return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401 });
-      }
-
-      console.log("✅ Signature verified");
-    } else {
-      console.log("⚠️ Webhook signature verification skipped (no secret configured)");
+    // ── FAIL CLOSED ────────────────────────────────────────────────────
+    // Previously the signature check was conditional:
+    //     if (RAZORPAY_WEBHOOK_SECRET && signature) { ... }
+    // so an unset secret (or a missing header) let the event through totally
+    // unverified — anyone who knew the URL could mark an order paid.
+    // Now an unverifiable webhook is rejected outright.
+    // ───────────────────────────────────────────────────────────────────
+    if (!RAZORPAY_WEBHOOK_SECRET) {
+      console.error("razorpay-webhook: RAZORPAY_WEBHOOK_SECRET is not configured — rejecting event");
+      return new Response(
+        JSON.stringify({ error: "Webhook verification unavailable" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
     }
 
+    if (!signature) {
+      console.error("razorpay-webhook: missing x-razorpay-signature header — rejecting event");
+      return new Response(
+        JSON.stringify({ error: "Missing signature" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const expectedSignature = await hmacSha256Hex(RAZORPAY_WEBHOOK_SECRET, body);
+
+    // Constant-time comparison: a naive !== leaks the matching prefix length.
+    if (!timingSafeEqual(expectedSignature, signature)) {
+      console.error("❌ Invalid signature - rejecting webhook");
+      return new Response(
+        JSON.stringify({ error: "Invalid signature" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    log("✅ Signature verified");
+
     const event = JSON.parse(body);
-    console.log("📦 Event type:", event.event);
-    console.log("📦 Event payload:", JSON.stringify(event.payload, null, 2));
+    // Deliberately NOT logging the event payload: it carries customer
+    // contact details, addresses and payment identifiers.
+    log("event type:", event.event);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

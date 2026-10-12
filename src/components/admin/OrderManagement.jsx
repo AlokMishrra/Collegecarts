@@ -5,6 +5,7 @@ import { DeliveryPerson } from "@/entities/DeliveryPerson";
 import { Notification } from "@/entities/Notification";
 import { User } from "@/entities/User";
 import { supabase } from "@/lib/supabase";
+import { usePolling } from "@/hooks/usePolling";
 import { Package, Clock, Truck, CheckCircle, XCircle, User as UserIcon, Trash2, RefreshCw, DollarSign, Search, Filter, FileText, FileSpreadsheet, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
   deductStockOnDelivery,
@@ -72,13 +71,6 @@ export default function OrderManagement() {
 
   useEffect(() => {
     loadData();
-    
-    // Poll for new orders every 5 seconds
-    const interval = setInterval(() => {
-      checkForNewOrders();
-    }, 5000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const playNotificationSound = async (times = 3) => {
@@ -94,22 +86,39 @@ export default function OrderManagement() {
     }
   };
 
-  const checkForNewOrders = async () => {
+  /**
+   * Count-only new-order check.
+   *
+   * The previous version fetched every order row to count the pending ones.
+   * PostgREST `count=exact` with `head:true` returns the number in a header and
+   * no rows at all, which is what this check actually needs.
+   */
+  const checkForNewOrdersCount = async () => {
     try {
-      const ordersData = await Order.list('-created_date');
-      const pendingOrders = ordersData.filter(o => o.status === 'pending' || o.status === 'confirmed');
-      
-      if (lastOrderCount > 0 && pendingOrders.length > lastOrderCount) {
-        // New order detected, play sound 3 times
+      const [{ count: pendingCount, error: e1 }, { count: confirmedCount, error: e2 }] = await Promise.all([
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "confirmed"),
+      ]);
+      if (e1 || e2) throw e1 || e2;
+
+      const total = (pendingCount ?? 0) + (confirmedCount ?? 0);
+      if (lastOrderCount > 0 && total > lastOrderCount) {
         playNotificationSound(3);
+        // Pull the list once so the table shows the new order.
+        await loadData(true);
       }
-      
-      setLastOrderCount(pendingOrders.length);
-      setOrders(ordersData);
+      setLastOrderCount(total);
     } catch (error) {
       console.error("Error checking for new orders:", error);
     }
   };
+
+  // Declared after checkForNewOrdersCount on purpose: the hook takes that
+  // callback, and referencing it earlier would hit the const TDZ.
+  //
+  // WAS: setInterval(checkForNewOrders, 5000) pulling the whole orders table.
+  // NOW: a COUNT-only check, 30 s, visibility-gated (see hook docs).
+  usePolling(checkForNewOrdersCount, { intervalMs: 30000, immediate: false });
 
   const loadData = async (showRefreshing = false) => {
     if (showRefreshing) {
@@ -581,7 +590,11 @@ export default function OrderManagement() {
     }
   };
 
-  const exportToPDF = (ordersList, fileName) => {
+  const exportToPDF = async (ordersList, fileName) => {
+    // jspdf + xlsx total ~300 KB gzipped and are needed only when an admin
+    // clicks an export button. Importing on demand keeps them out of the
+    // entry chunk and the modulepreload list that every customer downloads.
+    const { jsPDF } = await import("jspdf");
     const doc = new jsPDF();
     
     doc.setFontSize(20);
@@ -619,7 +632,8 @@ export default function OrderManagement() {
     doc.save(`${fileName}.pdf`);
   };
 
-  const exportToExcel = (ordersList, fileName) => {
+  const exportToExcel = async (ordersList, fileName) => {
+    const XLSX = await import("xlsx");
     const data = ordersList.map(order => ({
       'Order Number': order.order_number,
       'Customer Name': order.customer_name,

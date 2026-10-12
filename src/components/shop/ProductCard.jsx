@@ -8,10 +8,10 @@ import { Star, Clock, Heart } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { ProductImage } from "@/components/ui/product-image";
+import { useProductMeta } from "./ProductMetaProvider";
 
 const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCart, onUpdateQuantity, hostelStock: propHostelStock, isInStock, userHostel }) {
   const navigate = useNavigate();
-  const [reviews, setReviews] = useState([]);
   const [avgRating, setAvgRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   const [isInWishlist, setIsInWishlist] = useState(false);
@@ -20,23 +20,26 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
   const hostelStock = propHostelStock !== undefined ? propHostelStock : product.stock_quantity || 0;
   const displayPrice = product.price;
 
-  useEffect(() => {
-    loadReviews();
-    checkWishlistStatus();
-  }, [product.id]);
+  // ── Batched product metadata ───────────────────────────────────────────
+  // WAS: this card ran its own queries on mount — User.me(),
+  // Wishlist.filter(user, product) and Review.filter(product, 10). Across a
+  // grid of 20-60 cards that was 40-120 requests for the landing page alone,
+  // growing with the catalogue.
+  //
+  // NOW: ProductMetaProvider fetches the whole grid's wishlist ids and review
+  // ratings in one query each and passes them down as lookup maps, so an
+  // individual card performs no I/O.
+  // ───────────────────────────────────────────────────────────────────────
+  const { wishlistIds, ratings, reviewCounts, refreshWishlist } = useProductMeta();
 
-  const checkWishlistStatus = async () => {
-    try {
-      const currentUser = await User.me();
-      const wishlistItems = await base44.entities.Wishlist.filter({
-        user_id: currentUser.id,
-        product_id: product.id
-      });
-      setIsInWishlist(wishlistItems.length > 0);
-    } catch (error) {
-      // User not logged in
-    }
-  };
+  useEffect(() => {
+    setIsInWishlist(wishlistIds.has(product.id));
+  }, [wishlistIds, product.id]);
+
+  useEffect(() => {
+    setReviewCount(reviewCounts[product.id] || 0);
+    setAvgRating(ratings[product.id] || 0);
+  }, [ratings, reviewCounts, product.id]);
 
   const toggleWishlist = async (e) => {
     e.preventDefault();
@@ -80,26 +83,6 @@ const ProductCard = memo(function ProductCard({ product, cartQuantity, onAddToCa
       }
     } finally {
       setIsAddingToWishlist(false);
-    }
-  };
-
-  const loadReviews = async () => {
-    try {
-      const reviewData = await base44.entities.Review.filter({ product_id: product.id }, '-created_date', 10).catch(() => []);
-      
-      // Skip order validation for performance - trust the data
-      setReviews(reviewData);
-      setReviewCount(reviewData.length);
-      
-      if (reviewData.length > 0) {
-        const totalRating = reviewData.reduce((sum, review) => sum + review.rating, 0);
-        setAvgRating(totalRating / reviewData.length);
-      }
-    } catch (error) {
-      console.error("Error loading reviews:", error);
-      setReviews([]);
-      setReviewCount(0);
-      setAvgRating(0);
     }
   };
 

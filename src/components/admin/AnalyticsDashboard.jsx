@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -20,15 +20,14 @@ export default function AnalyticsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
+  // The historical window below is a FIXED date range in the past, so those
+  // rows never change once the period has passed. Fetching them once and
+  // refetching only "today" removes a full orders-table scan every 60 s.
+  const historicalRangeFetchedRef = useRef(false);
+  const historicalRangeCacheRef = useRef([]);
+
   useEffect(() => {
     loadAnalytics();
-    
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(() => {
-      loadAnalytics();
-    }, 60000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const loadAnalytics = async () => {
@@ -37,44 +36,49 @@ export default function AnalyticsDashboard() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Fetch all data in parallel — paginated to bypass 1000-row max_rows cap
+      // ── Date-bounded queries instead of the whole table ────────────────
+      // WAS: fetchAllOrdersFull() paginated the ENTIRE orders table every 60 s
+      // and filtered for today's rows in JavaScript. Now the server returns
+      // only the two windows that are actually used.
       const { supabase } = await import('@/lib/supabase');
-      const fetchAllOrdersFull = async () => {
-        const all = [];
-        let from = 0;
-        const size = 1000;
-        while (true) {
-          const { data, error } = await supabase.from('orders').select('*').range(from, from + size - 1).order('created_at', { ascending: false });
-          if (error) throw error;
-          all.push(...(data || []));
-          if (!data || data.length < size) break;
-          from += size;
-        }
-        return all;
-      };
-      const [
-        allOrders,
-        allDeliveryPersons,
-        scheduledOrders,
-        withdrawalRequests,
-        allProducts
-      ] = await Promise.all([
-        fetchAllOrdersFull(),
-        base44.entities.DeliveryPerson.list(),
-        base44.entities.Order.filter({ is_scheduled: true, status: 'scheduled' }),
-        base44.entities.WithdrawalRequest?.filter({ status: 'pending' }).catch(() => []),
-        base44.entities.Product.list()
-      ]);
 
-      // Filter today's orders in JavaScript
-      const todayOrders = allOrders.filter(order => {
-        const orderDate = new Date(order.created_at);
-        return orderDate >= today;
-      });
-
-      // ── 19 Aug 2026 – 21 Sep 2026 IST: delivered only, exclude cancelled ──
       const rangeStart = new Date('2026-08-19T00:00:00+05:30');
       const rangeEnd   = new Date('2026-09-21T23:59:59+05:30');
+
+      const [allDeliveryPersons, scheduledOrders, withdrawalRequests, allProducts, todayRows, rangeRows] =
+        await Promise.all([
+          base44.entities.DeliveryPerson.list(),
+          base44.entities.Order.filter({ is_scheduled: true, status: 'scheduled' }),
+          base44.entities.WithdrawalRequest?.filter({ status: 'pending' }).catch(() => []),
+          base44.entities.Product.list(),
+          // Today only.
+          supabase.from('orders')
+            .select('*')
+            .gte('created_at', today.toISOString())
+            .order('created_at', { ascending: false }),
+          // The fixed historical window: fetched once, then reused.
+          historicalRangeFetchedRef.current
+            ? Promise.resolve({ data: historicalRangeCacheRef.current, error: null })
+            : supabase.from('orders')
+                .select('*')
+                .gte('created_at', rangeStart.toISOString())
+                .lte('created_at', rangeEnd.toISOString())
+                .order('created_at', { ascending: false }),
+        ]);
+
+      if (todayRows.error) throw todayRows.error;
+      if (rangeRows.error) throw rangeRows.error;
+
+      if (!historicalRangeFetchedRef.current) {
+        historicalRangeCacheRef.current = rangeRows.data || [];
+        historicalRangeFetchedRef.current = true;
+      }
+
+      const allOrders = [...(todayRows.data || []), ...(historicalRangeCacheRef.current || [])];
+      const todayOrders = (todayRows.data || []).filter(o => new Date(o.created_at) >= today);
+
+      // ── 19 Aug 2026 – 21 Sep 2026 IST: delivered only, exclude cancelled ──
+      // rangeStart / rangeEnd are declared above with the queries that use them.
       const deliveredInRange = allOrders.filter(o => {
         if (!o.created_at) return false;
         const d = new Date(o.created_at);

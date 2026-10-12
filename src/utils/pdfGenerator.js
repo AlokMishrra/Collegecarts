@@ -1,8 +1,12 @@
-import jsPDF from 'jspdf';
+// jspdf is ~165 KB gzipped. It is imported inside each function that needs it
+// so it stays out of the entry chunk; the only callers are employee pages,
+// which are themselves lazy.
+const loadJsPDF = () => import('jspdf').then((m) => m.default ?? m.jsPDF);
 import 'jspdf-autotable';
 import QRCode from 'qrcode';
 
 export const generateStockOrderPDF = async (order, showPrices = false) => {
+  const { default: jsPDF } = { default: await loadJsPDF() };
   const doc = new jsPDF();
   
   // Header
@@ -170,6 +174,7 @@ export const generateStockOrderPDF = async (order, showPrices = false) => {
 };
 
 export const generateSalarySlipPDF = async (salaryLog, employee) => {
+  const { default: jsPDF } = { default: await loadJsPDF() };
   const doc = new jsPDF();
   
   // Header
@@ -317,6 +322,7 @@ export const generateSalarySlipPDF = async (salaryLog, employee) => {
 };
 
 export const generateEmployeeIDCard = async (employee) => {
+  const { default: jsPDF } = { default: await loadJsPDF() };
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',

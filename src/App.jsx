@@ -152,10 +152,15 @@ const HomeRoute = () => {
   // Browsing is open so the shop can be crawled and indexed, which is what the
   // organic traffic depends on. An account is only required when the customer
   // actually orders — see the login prompt in updateCartQuantity.
+  // MainPage is a lazy() component (see pages.config.js), so it needs a
+  // Suspense boundary. It reuses the same skeleton the other routes use so the
+  // landing page does not look different from a routed visit.
   return (
     <LayoutWrapper>
       <RouteErrorBoundary>
-        <MainPage />
+        <Suspense fallback={<PageLoadingSkeleton />}>
+          <MainPage />
+        </Suspense>
       </RouteErrorBoundary>
     </LayoutWrapper>
   );

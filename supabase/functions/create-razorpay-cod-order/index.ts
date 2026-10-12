@@ -1,9 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { json, requireUser, isAdmin } from '../_shared/auth.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+/**
+ * User-scoped client so RLS decides whether the caller may read the order.
+ * Takes the caller's own Authorization header, never the service key.
+ */
+function supabaseReadClient(authHeader: string) {
+  return createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } }
+  );
 }
 
 serve(async (req) => {
@@ -16,20 +24,53 @@ serve(async (req) => {
     const body = await req.json()
     const { orderId, amount, customerName, customerPhone, customerEmail } = body
 
-    console.log('Request body:', JSON.stringify(body))
-    console.log('Creating Razorpay order for COD collection:', {
-      orderId,
-      amount,
-      customerName,
-      customerPhone
-    })
+    // Customer name/phone/email are deliberately not logged.
+    console.log('Creating Razorpay order for orderId:', orderId)
 
-    // Validate input
-    if (!orderId || !amount || amount <= 0) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid order details' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // ── HARDENED ────────────────────────────────────────────────────────
+    // This function was callable by anyone holding the public anon key, and it
+    // created a Razorpay order for an arbitrary amount. It also updated any
+    // order row by id without checking the caller may touch it.
+    //
+    // Contract now:
+    //   * the caller must be an authenticated user
+    //   * the amount must match the order's own total_amount when the order
+    //     exists, so the browser cannot choose how much a customer pays
+    //   * the order row is only updated when the caller owns it or is an admin
+    // ───────────────────────────────────────────────────────────────────
+    const authHeader = req.headers.get('Authorization') ?? '';
+
+    const auth = await requireUser(req);
+    if (!auth) {
+      return json({ error: 'Unauthorized' }, 401);
+    }
+
+    const amountNum = Number(amount);
+
+    // Server-side amount binding for a known order.
+    if (orderId && !String(orderId).startsWith('wallet_')) {
+      const admin = await isAdmin(auth.user.id);
+      const rowQuery = supabaseReadClient(authHeader)
+        .from('orders')
+        .select('id, total_amount, user_id')
+        .eq('id', orderId);
+
+      const { data: own } = await rowQuery.maybeSingle();
+      const allowed = !!own || admin;
+
+      if (!allowed) {
+        return json({ error: 'Forbidden' }, 403);
+      }
+
+      if (own && own.total_amount !== null && own.total_amount !== undefined) {
+        const expected = Number(own.total_amount);
+        if (Number.isFinite(expected) && Math.abs(expected - amountNum) > 0.01) {
+          return json(
+            { error: 'Amount does not match the order total' },
+            400,
+          );
+        }
+      }
     }
 
     // Get Razorpay credentials from environment

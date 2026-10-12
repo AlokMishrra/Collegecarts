@@ -27,6 +27,7 @@ import EnhancedShopHero    from "../components/shop/EnhancedShopHero";
 import CategorySection     from "../components/shop/CategorySection";
 import CategoryFilter      from "../components/shop/CategoryFilter";
 import ProductCard         from "../components/shop/ProductCard";
+import { ProductMetaProvider } from "../components/shop/ProductMetaProvider";
 import HostelSelector      from "../components/shop/HostelSelector";
 import RecommendationEngine from "../components/shop/RecommendationEngine";
 import EnhancedSearch      from "../components/shop/EnhancedSearch";
@@ -954,19 +955,21 @@ export default function Shop() {
                 <p className="text-sm text-gray-600">
                   Found <span className="font-semibold text-gray-900">{filteredProducts.length}</span> products
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {displayedProducts.map(product => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      cartQuantity={getCartQuantity(product.id)}
-                      onAddToCart={addToCart}
-                      onUpdateQuantity={updateCartQuantity}
-                      hostelStock={getHostelStock(product)}
-                      isInStock={isProductInStock(product)}
-                    />
-                  ))}
-                </div>
+                <ProductMetaProvider productIds={displayedProducts.map((p) => p.id)}>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {displayedProducts.map(product => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        cartQuantity={getCartQuantity(product.id)}
+                        onAddToCart={addToCart}
+                        onUpdateQuantity={updateCartQuantity}
+                        hostelStock={getHostelStock(product)}
+                        isInStock={isProductInStock(product)}
+                      />
+                    ))}
+                  </div>
+                </ProductMetaProvider>
                 {hasMore && (
                   <div ref={observerTarget} className="py-8">
                     {isLoadingMore && (

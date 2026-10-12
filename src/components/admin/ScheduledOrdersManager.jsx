@@ -5,28 +5,32 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Package, User, MapPin, Phone } from "lucide-react";
 import { OrderListSkeleton } from "@/components/ui/loading-skeleton";
+import { supabase } from "@/lib/supabase";
+import { usePolling } from "@/hooks/usePolling";
 
 export default function ScheduledOrdersManager() {
   const [scheduledOrders, setScheduledOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Initial load. The periodic refresh is the usePolling call below.
   useEffect(() => {
     loadScheduledOrders();
-    
-    // Refresh every 30 seconds
-    const interval = setInterval(loadScheduledOrders, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadScheduledOrders = async () => {
     try {
-      // Get all orders and filter in JavaScript (Supabase doesn't support $or in filter)
-      const allOrders = await base44.entities.Order.list();
-      
-      // Filter to only show orders that are scheduled
-      const scheduledOnly = allOrders.filter(o => 
-        (o.status === 'scheduled' || o.is_scheduled === true) && o.scheduled_time
-      );
+      // WAS: `Order.list()` with NO filter — the entire orders table, every
+      // 30 s — then discarded in JavaScript. Supabase supports `.or()` for this,
+      // so only the scheduled rows are transferred.
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .or('status.eq.scheduled,is_scheduled.eq.true')
+        .not('scheduled_time', 'is', null)
+        .order('scheduled_time', { ascending: true });
+
+      if (error) throw error;
+      const scheduledOnly = data || [];
       
       // Sort by scheduled_time
       scheduledOnly.sort((a, b) => 
@@ -40,6 +44,10 @@ export default function ScheduledOrdersManager() {
     }
     setIsLoading(false);
   };
+
+  // Scheduled orders change only when a release action is taken, so a slow
+  // visibility-gated poll is sufficient. WAS: a full ORDER-table scan every 30s.
+  usePolling(loadScheduledOrders, { intervalMs: 60000, immediate: false });
 
   const releaseOrderNow = async (orderId) => {
     try {

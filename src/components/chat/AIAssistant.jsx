@@ -9,8 +9,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { detectLanguage, detectIntent, knowledgeBase, extractEntities, generateHinglishResponse } from "@/utils/chatbotIntents";
 import SupportTicketForm from "@/components/support/SupportTicketForm";
 
-// Bot icon - place bot-icon.png in public folder
-const BOT_ICON_URL = "/bot-icon.png";
+// Bot icon. public/bot-icon.webp is 12.9 KB (the .png was 1.5 MB);
+// the PNG remains in public/ as a fallback for very old browsers.
+// WebP first (12.9 KB) with the original PNG as a fallback.
+const BOT_ICON_URL = "/bot-icon.webp";
 
 // Fallback: Simple chat bubble icon as SVG data URL
 const FALLBACK_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%2310b981'/%3E%3Cpath d='M30 40 Q50 25 70 40 L70 60 Q50 75 30 60 Z' fill='white'/%3E%3Ccircle cx='40' cy='45' r='3' fill='%2310b981'/%3E%3Ccircle cx='60' cy='45' r='3' fill='%2310b981'/%3E%3Cpath d='M40 55 Q50 60 60 55' stroke='%2310b981' stroke-width='2' fill='none'/%3E%3C/svg%3E";
