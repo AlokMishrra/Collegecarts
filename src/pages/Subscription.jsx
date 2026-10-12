@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { User } from "@/entities/User";
 import { supabase } from "@/lib/supabase";
+import { logErrorToDB } from "@/utils/supabaseWithLogging";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -193,18 +194,21 @@ export default function Subscription() {
               end_date: endDate.toISOString(),
             };
 
-            // Update UI immediately — zero wait
-            setCurrentSub(optimisticSub);
+            // ── Persist BEFORE claiming success ──────────────────────────
+            // WAS: the UI was updated and "Premium activated!" was toasted
+            // immediately, then the entitlement row was written in a
+            // fire-and-forget Promise.all whose only failure handling was a
+            // console.error and a silent re-fetch. A failure therefore meant
+            // the customer had paid, been told they were Premium, and had no
+            // entitlement row and no refund path.
+            //
+            // NOW the subscription row is written first. Success is reported
+            // only once it exists; a failure reports what actually happened and
+            // surfaces the payment reference for support.
             setShowPayDialog(false);
-            setIsProcessingPayment(false);
 
-            import('sonner').then(({ toast }) =>
-              toast.success('Premium activated! Enjoy free delivery on all orders.')
-            );
-
-            // ── Background DB writes — don't block UI ──────────────────
-            Promise.all([
-              base44.entities.Subscription.create({
+            try {
+              const createdSub = await base44.entities.Subscription.create({
                 user_id: user.id,
                 user_email: user.email,
                 user_name: user.full_name,
@@ -214,23 +218,51 @@ export default function Subscription() {
                 status: 'active',
                 start_date: optimisticSub.start_date,
                 end_date: optimisticSub.end_date,
-              }),
+              });
+
+              setCurrentSub({ ...optimisticSub, id: createdSub?.id || optimisticSub.id });
+              setIsProcessingPayment(false);
+
+              import('sonner').then(({ toast }) =>
+                toast.success('Premium activated! Enjoy free delivery on all orders.')
+              );
+
+              // Decorative, so a failure here must not undo an entitlement
+              // that is already persisted.
               base44.entities.Notification.create({
                 user_id: user.id,
                 title: "🎉 Premium Activated!",
                 message: `Your ${selectedPlan.name} is now active. Enjoy free delivery for 1 month!`,
                 type: "success"
-              }),
-            ])
-              .then(([createdSub]) => {
-                // Replace optimistic id with real DB id
-                if (createdSub?.id) setCurrentSub(prev => ({ ...prev, id: createdSub.id }));
-              })
-              .catch(err => {
-                console.error('Background subscription save failed:', err);
-                // Silently re-fetch to sync state with DB
-                init();
-              });
+              }).catch(() => {});
+
+            } catch (persistErr) {
+              console.error('Subscription entitlement save failed:', persistErr);
+              setIsProcessingPayment(false);
+
+              // Be explicit: the payment succeeded, the entitlement did not.
+              logErrorToDB(
+                "API",
+                `Subscription entitlement not persisted after successful payment ` +
+                `ref=${response.razorpay_payment_id} user=${user?.id}: ${persistErr?.message}`,
+                "/Subscription",
+                persistErr?.stack
+              ).catch(() => {});
+
+              import('sonner').then(({ toast }) =>
+                toast.error('Your payment went through but we could not activate Premium.', {
+                  description:
+                    `Payment reference ${response.razorpay_payment_id}. Our team has been ` +
+                    `notified and will activate your plan or refund you. Please contact ` +
+                    `support with this reference.`,
+                  duration: 12000,
+                })
+              );
+
+              // Re-sync so the UI reflects the true state rather than an
+              // optimistic claim that no row backs.
+              init();
+            }
 
           } catch (err) {
             console.error('Payment verification error:', err);
