@@ -101,7 +101,36 @@ Fixing the column requires moving partner authentication server-side first. Lock
 
 **Rollout order matters:** deploy function → cut client over → verify employee login → only then revoke. Skipping a step locks out staff.
 
-### 3.3 Credential rotation
+### 3.3 LIVE SERVICE-ROLE KEY COMMITTED TO THE REPO
+**NEEDS MANUAL DASHBOARD ACTION — highest priority**
+
+Found during final review, and it is worse than the RLS exposure this branch
+fixes.
+
+`scripts/run-schema.mjs`, `scripts/apply-schema.ps1` and
+`docs/SECURITY_FIXES_SUMMARY.md` were committed in `16fe567` and contained the
+**live Supabase service-role JWT**. It was confirmed to be byte-identical to the
+key currently in `.env.local` (219 chars).
+
+The service-role key **bypasses RLS entirely**. Every policy this branch writes
+is irrelevant to anyone holding that key, and the key is in the repository
+history.
+
+`.gitignore` already listed all three files as things that must never be
+committed — but they were tracked, and `.gitignore` does not untrack.
+
+**Done here:** removed from the index in `a2754f2` (files kept on disk).
+
+**Still required — a human must do these:**
+1. **Rotate the service-role key immediately** in Supabase → Project Settings → API.
+2. Update every consumer of the old key: `.env`, `.env.local`, Vercel env vars,
+   Edge Function secrets.
+3. Treat the old key as compromised. Anything that ever had repo access had it.
+4. If the repo has ever been public or forked, assume it is burned.
+
+---
+
+### 3.4 Credential rotation
 **NEEDS MANUAL DASHBOARD ACTION**
 
 `.env` was committed in `77dfe89` with five real key names, plus a service-role key and a Vercel token were exposed in this session. Rotation must be done by a human in each provider's dashboard.
