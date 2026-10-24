@@ -36,7 +36,40 @@ export async function fetchByIds(table, ids) {
     .in('id', unique);
 
   if (error) throw error;
-  return data || [];
+  const rows = data || [];
+  return table === 'orders' ? rows.map(normalizeOrderRow) : rows;
+}
+
+/**
+ * Orders written by older clients stored `items` as a JSON *string* instead of
+ * a jsonb array. Every admin screen calls `order.items.map/forEach`, so those
+ * rows crashed /CCA with "order.items?.map is not a function". Normalize on the
+ * way out (and on the way in) so all consumers get an array of plain objects.
+ */
+export function normalizeOrderItems(value) {
+  let items = value;
+  if (typeof items === 'string') {
+    try {
+      items = JSON.parse(items);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({
+      ...item,
+      product_name: item.product_name ?? item.name ?? 'Item',
+      quantity: Number(item.quantity) || 1,
+      price: Number(item.price) || 0,
+    }));
+}
+
+function normalizeOrderRow(row) {
+  if (!row) return row;
+  return { ...row, items: normalizeOrderItems(row.items) };
 }
 
 export class Entity {
@@ -211,6 +244,9 @@ export class Entity {
       const mapped = this._mapField(key);
       result[mapped] = value;
     });
+    if (this.table === 'orders' && 'items' in result) {
+      result.items = normalizeOrderItems(result.items);
+    }
     return result;
   }
 
@@ -222,6 +258,14 @@ export class Entity {
     // Special handling for support_tickets table which uses created_date
     if (this.table === 'support_tickets' || this.table === 'support_ticket_comments') {
       return row; // Return as-is, already has created_date
+    }
+
+    if (this.table === 'orders') {
+      return {
+        ...normalizeOrderRow(row),
+        created_date: row.created_at, // backward compat alias
+        updated_date: row.updated_at, // backward compat alias
+      };
     }
     
     // Special handling for users table - ensure role defaults to 'customer'

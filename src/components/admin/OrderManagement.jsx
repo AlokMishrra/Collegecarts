@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Order } from "@/entities/Order";
+import { Product } from "@/entities/Product";
 import { DeliveryPerson } from "@/entities/DeliveryPerson";
 import { Notification } from "@/entities/Notification";
 import { User } from "@/entities/User";
@@ -22,23 +23,8 @@ import {
 import DeliveryMap from "../delivery/DeliveryMap";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
-import { fetchByIds } from "@/lib/entity";
 
-function AdminOrderItem({ item }) {
-  const [product, setProduct] = useState(null);
-
-  useEffect(() => {
-    const loadProduct = async () => {
-      try {
-        const prods = await fetchByIds("products", [item.product_id]);
-        setProduct(prods[0] || null);
-      } catch (error) {
-        console.error("Error loading product:", error);
-      }
-    };
-    loadProduct();
-  }, [item.product_id]);
-
+function AdminOrderItem({ item, product }) {
   return (
     <div>
       • {item.product_name} x{item.quantity}
@@ -59,6 +45,7 @@ function AdminOrderItem({ item }) {
 export default function OrderManagement() {
   const [orders, setOrders] = useState([]);
   const [deliveryPersons, setDeliveryPersons] = useState([]);
+  const [productsById, setProductsById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastOrderCount, setLastOrderCount] = useState(0);
@@ -131,12 +118,15 @@ export default function OrderManagement() {
       // runs against this list, and an order is usually viewed long after the
       // partner has gone offline — filtering to is_available:true made 206 of
       // 347 assigned orders display as "Not assigned".
-      const [ordersData, deliveryData] = await Promise.all([
+      const [ordersData, deliveryData, productsData] = await Promise.all([
         Order.list('-created_date'),
-        DeliveryPerson.list()
+        DeliveryPerson.list(),
+        // One bulk load instead of one products request per rendered item.
+        Product.list().catch(() => [])
       ]);
       setOrders(ordersData);
       setDeliveryPersons(deliveryData);
+      setProductsById(Object.fromEntries(productsData.map(p => [p.id, p])));
       
       // Initialize last order count
       const pendingOrders = ordersData.filter(o => o.status === 'pending' || o.status === 'confirmed');
@@ -827,7 +817,11 @@ export default function OrderManagement() {
                         <p className="font-medium mb-1">{order.items?.length || 0} items</p>
                         <div className="text-xs text-gray-600 space-y-0.5">
                           {order.items?.map((item, idx) => (
-                            <AdminOrderItem key={idx} item={item} />
+                            <AdminOrderItem
+                              key={idx}
+                              item={item}
+                              product={productsById[item.product_id]}
+                            />
                           ))}
                         </div>
                       </div>
