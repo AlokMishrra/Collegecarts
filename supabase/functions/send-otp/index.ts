@@ -1,7 +1,17 @@
 /**
- * send-otp — Generate OTP, store in DB, and email via Resend
- * Deploy: supabase functions deploy send-otp
- * Uses: send-email function + otp_codes table
+ * send-otp — emails a CollegeCart login OTP through Resend.
+ *
+ * Why: the project's Supabase-hosted SMTP is rate-limited and its sender is
+ * filtered by Gmail, so codes were never delivered. This asks the Supabase admin
+ * API for a genuine OTP (so `supabase.auth.verifyOtp` accepts it) and delivers
+ * that code with Resend on a verified domain.
+ *
+ * Deploy:
+ *   supabase functions deploy send-otp
+ *   supabase secrets set RESEND_API_KEY=re_xxx \
+ *     RESEND_FROM_EMAIL="CollegeCart <noreply@collegecarts.in>"
+ *
+ * No database table is required and the service-role key never leaves the server.
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -9,144 +19,97 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const RESEND_COOLDOWN_SECONDS = 30;
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+// In-memory throttle. Edge instances are ephemeral, so this is best-effort and
+// only exists to stop an accidental double-tap from burning two emails.
+const lastSent = new Map<string, number>();
+
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return json({ ok: true });
 
-  try {
-    const { email } = await req.json();
-    if (!email) {
-      return Response.json({ error: 'Email is required' }, { status: 400, headers: corsHeaders });
-    }
+  const apiKey = Deno.env.get('RESEND_API_KEY');
+  const fromEmail = Deno.env.get('RESEND_FROM_EMAIL');
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Generate 6-digit OTP
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-
-    // Invalidate old OTPs for this email
-    await supabase
-      .from('otp_codes')
-      .update({ used: true })
-      .eq('email', email)
-      .eq('used', false);
-
-    // Store new OTP (expires in 10 minutes)
-    const { error: insertErr } = await supabase
-      .from('otp_codes')
-      .insert({
-        email,
-        code,
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        used: false,
-      });
-
-    if (insertErr) {
-      console.error('Insert error:', insertErr);
-      return Response.json({ error: 'Failed to create OTP' }, { status: 500, headers: corsHeaders });
-    }
-
-    // Send email via Resend
-    const resendKey = Deno.env.get('RESEND_API_KEY');
-    if (resendKey) {
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <body style="margin:0;padding:0;background-color:#f0fdf4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;padding:40px 16px;">
-            <tr><td align="center">
-              <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
-                <tr><td align="center" style="padding-bottom:24px;">
-                  <table cellpadding="0" cellspacing="0"><tr>
-                    <td style="background:#ffffff;border-radius:20px;padding:16px 28px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
-                      <table cellpadding="0" cellspacing="0"><tr>
-                        <td style="padding-right:12px;vertical-align:middle;">
-                          <div style="width:44px;height:44px;background:#059669;border-radius:12px;text-align:center;line-height:44px;color:#fff;font-size:24px;font-weight:900;">C</div>
-                        </td>
-                        <td style="vertical-align:middle;">
-                          <div style="font-size:20px;font-weight:800;color:#059669;">CollegeCart</div>
-                          <div style="font-size:11px;color:#6b7280;">Smart Shopping, Better Living</div>
-                        </td>
-                      </tr></table>
-                    </td>
-                  </tr></table>
-                </td></tr>
-                <tr><td style="background:#ffffff;border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden;">
-                  <div style="height:5px;background:linear-gradient(90deg,#059669,#34d399);"></div>
-                  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 40px 36px;">
-                    <tr><td align="center" style="padding-bottom:20px;">
-                      <div style="width:64px;height:64px;background:#d1fae5;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">
-                        <span style="font-size:32px;">🔐</span>
-                      </div>
-                    </td></tr>
-                    <tr><td align="center" style="padding-bottom:8px;">
-                      <h1 style="margin:0;font-size:24px;font-weight:800;color:#111827;">Verify your email</h1>
-                    </td></tr>
-                    <tr><td align="center" style="padding-bottom:32px;">
-                      <p style="margin:0;font-size:15px;color:#6b7280;line-height:1.6;">
-                        Use the code below to complete your<br/>CollegeCart account setup.
-                      </p>
-                    </td></tr>
-                    <tr><td align="center" style="padding-bottom:32px;">
-                      <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:2px solid #86efac;border-radius:16px;padding:24px 40px;display:inline-block;">
-                        <div style="font-size:11px;font-weight:600;color:#059669;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Your 6-digit verification code</div>
-                        <div style="font-size:42px;font-weight:900;color:#065f46;letter-spacing:10px;font-family:'Courier New',monospace;">${code}</div>
-                        <div style="font-size:12px;color:#6b7280;margin-top:10px;">⏱ Expires in 10 minutes</div>
-                      </div>
-                    </td></tr>
-                    <tr><td style="padding-bottom:28px;">
-                      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:12px;padding:16px 20px;">
-                        <tr><td style="font-size:13px;color:#374151;line-height:1.7;">
-                          <strong style="color:#111827;">How to verify:</strong><br/>
-                          1. Go back to the CollegeCart app<br/>
-                          2. Enter the 6-digit code above<br/>
-                          3. Your account will be activated instantly
-                        </td></tr>
-                      </table>
-                    </td></tr>
-                    <tr><td align="center" style="padding-bottom:8px;">
-                      <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6;">
-                        If you didn't create a CollegeCart account, you can safely ignore this email.<br/>
-                        Never share this code with anyone.
-                      </p>
-                    </td></tr>
-                  </table>
-                </td></tr>
-                <tr><td align="center" style="padding-top:28px;">
-                  <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">
-                    Questions? Email us at <a href="mailto:contact@collegecarts.in" style="color:#059669;font-weight:600;">contact@collegecarts.in</a>
-                  </p>
-                  <p style="margin:0;font-size:12px;color:#9ca3af;">© ${new Date().getFullYear()} CollegeCart</p>
-                </td></tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-        </html>
-      `;
-
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'CollegeCart <noreply@collegecarts.in>',
-          to: [email],
-          subject: 'Your CollegeCart Verification Code',
-          html,
-        }),
-      });
-    }
-
-    return Response.json({ success: true }, { headers: corsHeaders });
-  } catch (err) {
-    console.error('send-otp error:', err);
-    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+  const missing = [
+    ['RESEND_API_KEY', apiKey],
+    ['RESEND_FROM_EMAIL', fromEmail],
+    ['SUPABASE_SERVICE_ROLE_KEY', serviceKey],
+  ]
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (missing.length) {
+    console.error('missing secrets:', missing.join(', '));
+    return json({ error: 'Email service not configured.' }, 500);
   }
+
+  let email = '';
+  try {
+    ({ email } = await req.json());
+  } catch {
+    return json({ error: 'Invalid request body.' }, 400);
+  }
+
+  email = String(email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) return json({ error: 'Enter a valid email address.' }, 400);
+
+  const since = Date.now() - (lastSent.get(email) ?? 0);
+  if (since < RESEND_COOLDOWN_SECONDS * 1000) {
+    const wait = Math.ceil((RESEND_COOLDOWN_SECONDS * 1000 - since) / 1000);
+    return json({ error: `Please wait ${wait}s before requesting another code.` }, 429);
+  }
+
+  const admin = createClient(supabaseUrl!, serviceKey!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  // A real Supabase OTP, so the client can verify it with verifyOtp() as usual.
+  const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+  // supabase-js nests the generated values under `properties`; the raw REST
+  // response returns them flat, so accept both shapes.
+  const otp = data?.properties?.email_otp ?? data?.email_otp;
+  if (error || !otp) {
+    console.error('generateLink failed', JSON.stringify(error), Object.keys(data || {}).join(','));
+    return json({ error: 'Could not create a login code. Please try again.' }, 500);
+  }
+
+  const code = String(otp);
+  const resend = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [email],
+      subject: `${code} is your CollegeCart code`,
+      html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:420px;margin:0 auto;padding:24px">
+  <h2 style="margin:0 0 4px">Your CollegeCart code</h2>
+  <p style="color:#666;margin:0 0 20px">Use this to finish signing in. It expires in 60 minutes.</p>
+  <div style="font-size:34px;font-weight:700;letter-spacing:8px;background:#EFF9F1;border-radius:12px;padding:20px;text-align:center;color:#0F7A45">${code}</div>
+  <p style="color:#888;font-size:12px;margin-top:24px">If you didn't request this, you can safely ignore this email.</p>
+</div>`,
+      text: `Your CollegeCart code is ${code}. It expires in 60 minutes.`,
+    }),
+  });
+
+  if (!resend.ok) {
+    console.error('resend failed', resend.status, await resend.text());
+    // Don't leak provider details to the client.
+    return json({ error: 'Could not send the email. Please try again.' }, 502);
+  }
+
+  lastSent.set(email, Date.now());
+  return json({ ok: true });
 });

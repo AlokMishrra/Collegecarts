@@ -263,13 +263,14 @@ export default function Login() {
     setIsLoading(true);
     clearError();
     try {
-      // Step 1: Verify OTP via custom database function
-      const { data: isValid, error: verifyErr } = await supabase.rpc('verify_otp', {
-        p_email: email,
-        p_code: code,
+      // Step 1: Verify the Supabase Auth OTP issued by send-otp
+      const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: 'magiclink',
       });
 
-      if (verifyErr || !isValid) {
+      if (verifyErr || !verifyData?.session) {
         setError('This code is invalid or has expired. Please request a new one.');
         return;
       }
@@ -536,7 +537,7 @@ export default function Login() {
           <span className="font-semibold text-gray-700">{email}</span>
         </p>
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-3 text-center">
-          ⏱ Code expires in 10 minutes — check your spam folder too
+          ⏱ Code expires in 60 minutes — check your spam folder too
         </p>
       </div>
 

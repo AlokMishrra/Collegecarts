@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
-import { Mail, Lock, Loader2, ArrowLeft, ShieldCheck, User, CheckCircle } from 'lucide-react';
+import { Mail, Lock, Loader2, ArrowLeft, ShieldCheck, CheckCircle } from 'lucide-react';
 
 const BTN_BASE = 'w-full h-12 rounded-xl font-semibold text-base flex items-center justify-center gap-2 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -124,12 +124,13 @@ export default function ForgotPassword() {
     setIsLoading(true);
     clearError();
     try {
-      const { data: isValid, error: verifyErr } = await supabase.rpc('verify_otp', {
-        p_email: email,
-        p_code: code,
+      const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: 'magiclink',
       });
 
-      if (verifyErr || !isValid) {
+      if (verifyErr || !verifyData?.session) {
         setError('This code is invalid or has expired. Please request a new one.');
         return;
       }
@@ -292,7 +293,7 @@ export default function ForgotPassword() {
               <span className="font-semibold text-gray-700">{email}</span>
             </p>
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-3 text-center">
-              Code expires in 10 minutes — check your spam folder too
+              Code expires in 60 minutes — check your spam folder too
             </p>
           </div>
 
