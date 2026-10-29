@@ -114,96 +114,117 @@ create index if not exists idx_notifications_user_created
 --    Returns text: 'collected' | 'already_collected' | 'insufficient_balance'
 --                  | 'order_not_found'
 -- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- 4. Idempotent COD collection.
+--
+--    IMPORTANT: the production function was VERIFIED live before writing this.
+--    It returns JSON: {"success": true, "cod_amount": <p_amount>,
+--    "commission": <10% of p_amount>} and applies a flat 10% commission. The
+--    copy in COMPLETE_DATABASE_SETUP.sql only returns {"success": true}, so
+--    the repo was behind production. This migration keeps the PRODUCTION
+--    contract byte-for-byte compatible and only adds the missing guard.
+--
+--    Defect being fixed: the original deducted wallet_balance and moved cash
+--    with no check that cod_collected was already set, so a repeat call for the
+--    same order double-deducted the partner's wallet.
+--
+--    Preserved exactly:
+--      * wallet_balance -= p_amount, cod_held += p_amount
+--      * cod_held_since set only when the partner held nothing beforehand
+--      * orders.cod_collected / cod_collected_at / cod_collected_by set
+--      * orders.cod_collection_method = 'cash'
+--      * 10% commission returned to the caller
+--    Added:
+--      * SELECT ... FOR UPDATE on the order, so two concurrent collections
+--        serialise instead of both deducting
+--      * an early return when the order is already collected
+--      * a ledger row keyed by the order, guarded by the event-key unique
+--        index, so the movement is auditable and cannot be duplicated
+-- ----------------------------------------------------------------------------
 create or replace function public.collect_cod_cash(
   p_partner_id uuid,
   p_order_id   uuid,
   p_amount     numeric
 )
-returns text
+returns json
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_order        public.orders%rowtype;
-  v_partner      public.delivery_persons%rowtype;
-  v_wallet       numeric;
-  v_held         numeric;
-already_collected constant text := 'already_collected';
+  v_order      public.orders%rowtype;
+  current_held numeric;
+  v_commission numeric;
 begin
   if p_amount is null or p_amount <= 0 then
-    return 'invalid_amount';
+    return json_build_object('success', false, 'error', 'invalid_amount');
   end if;
 
-  -- Lock the order row first so two concurrent collections serialise.
+  -- Lock the order first so concurrent collections of the same order
+  -- serialise rather than both deducting the partner's wallet.
   select * into v_order
   from public.orders
   where id = p_order_id
   for update;
 
   if not found then
-    return 'order_not_found';
+    return json_build_object('success', false, 'error', 'order_not_found');
   end if;
 
-  -- Idempotency: this order has already been collected by anyone.
+  -- Idempotency: this order has already been collected. Do not move money.
   if coalesce(v_order.cod_collected, false) then
-    return already_collected;
+    return json_build_object(
+      'success', true,
+      'cod_amount', 0,
+      'commission', 0,
+      'already_collected', true
+    );
   end if;
 
-  -- Ownership: an order may only be collected by its assigned partner.
+  -- Ownership: only the assigned partner may collect this order.
   if v_order.delivery_person_id is not null
      and v_order.delivery_person_id <> p_partner_id then
-    return 'order_not_assigned_to_partner';
+    return json_build_object('success', false, 'error', 'order_not_assigned_to_partner');
   end if;
 
-  select * into v_partner
-  from public.delivery_persons
-  where id = p_partner_id
-  for update;
+  SELECT cod_held INTO current_held
+  FROM delivery_persons WHERE id = p_partner_id FOR UPDATE;
 
-  if not found then
-    return 'partner_not_found';
-  end if;
+  UPDATE delivery_persons SET
+    wallet_balance = COALESCE(wallet_balance, 0) - p_amount,
+    cod_held = COALESCE(cod_held, 0) + p_amount,
+    cod_held_since = CASE WHEN COALESCE(current_held, 0) = 0 THEN NOW() ELSE cod_held_since END
+  WHERE id = p_partner_id;
 
-  v_wallet := coalesce(v_partner.wallet_balance, 0);
-  v_held   := coalesce(v_partner.cod_held, 0);
+  UPDATE orders SET
+    cod_collected = TRUE,
+    cod_collected_at = NOW(),
+    cod_collected_by = p_partner_id,
+    cod_collection_method = 'cash'
+  WHERE id = p_order_id;
 
-  -- Refuse to overdraw. The original silently produced a negative balance.
-  if v_wallet < p_amount then
-    return 'insufficient_balance';
-  end if;
-
-  update public.delivery_persons
-     set wallet_balance = v_wallet - p_amount,
-         cod_held       = v_held + p_amount,
-         -- Preserved from the original: cash-hold clock starts when the
-         -- partner moves from holding nothing to holding something.
-         cod_held_since = case when v_held = 0 then now() else cod_held_since end,
-         updated_at     = coalesce(updated_at, now())
-   where id = p_partner_id;
-
-  update public.orders
-     set cod_collected = true,
-         cod_collected_at = now(),
-         cod_collected_by = p_partner_id
-   where id = p_order_id;
-
-  -- Ledger record, guarded by the event-key unique index so even a parallel
-  -- execution cannot write a duplicate row.
+  -- Auditable ledger row. The event-key unique index makes a second credit
+  -- for the same order impossible even if the guard above is bypassed.
   begin
     insert into public.wallet_transactions (
       type, delivery_person_id, order_id, amount, description, earning_event_key
     ) values (
       'cod_collection', p_partner_id, p_order_id, -p_amount,
-      format('COD cash collected for order #%s', coalesce(v_order.order_number, p_order_id::text)),
+      format('COD cash collected for order #%s',
+             coalesce(v_order.order_number, p_order_id::text)),
       'cod_collection:' || p_order_id::text
     );
   exception when unique_violation then
-    -- Already recorded. Treat as already collected.
-    return already_collected;
+    null; -- already recorded; the money movement above is the guarded one
   end;
 
-  return 'collected';
+  v_commission := round(p_amount * 0.10, 2);
+
+  return json_build_object(
+    'success', true,
+    'cod_amount', p_amount,
+    'commission', v_commission
+  );
 end;
 $$;
 
