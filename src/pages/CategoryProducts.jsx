@@ -14,6 +14,7 @@ import { notifyCartUpdate } from "@/utils/cartEvents";
 import { toast } from "sonner";
 import { useSEO, setJsonLd, removeJsonLd, SITE_ORIGIN } from "@/lib/useSEO";
 import { getDisplayStock } from "@/utils/hostelStockHelper";
+import { isProductAvailableNow } from "@/utils/productAvailability";
 
 export default function CategoryProducts() {
   const navigate = useNavigate();
@@ -98,35 +99,17 @@ export default function CategoryProducts() {
     // selected hostel still showed an enabled ADD button here.
     getDisplayStock(product, user?.selected_hostel);
 
-  // Restored: this had its own availability-window check that the earlier
-  // refactor removed along with the old getHostelStock. It layers the product's
-  // available_from/available_to window on top of the shared per-hostel stock
-  // rule, so a product stocked for this hostel but outside its sale window is
-  // still treated as unavailable.
+  // Layers the product's availability window on top of the shared per-hostel
+  // stock rule, so a product stocked for this hostel but outside its sale
+  // window is still treated as unavailable.
+  //
+  // The window logic now comes from src/utils/productAvailability.js, which is
+  // the same helper the Shop page uses. The inline copy that used to live here
+  // was a third implementation with different parsing, and an unreadable
+  // window was treated as CLOSED - which hid genuinely in-stock products.
   const isProductInStock = (product) => {
     if (getHostelStock(product) <= 0) return false;
-    if (!product?.available_from || !product?.available_to) return true;
-    try {
-      const now = new Date();
-      const cur = now.getHours() * 60 + now.getMinutes();
-      const parse = (t) => {
-        if (!t) return null;
-        const m12 = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
-        if (m12) {
-          let h = parseInt(m12[1], 10);
-          const min = parseInt(m12[2], 10);
-          if (m12[3].toUpperCase() === "PM" && h !== 12) h += 12;
-          if (m12[3].toUpperCase() === "AM" && h === 12) h = 0;
-          return h * 60 + min;
-        }
-        const m24 = t.match(/^(\d{1,2}):(\d{2})$/);
-        return m24 ? parseInt(m24[1], 10) * 60 + parseInt(m24[2], 10) : null;
-      };
-      const from = parse(product.available_from);
-      const to = parse(product.available_to);
-      if (from !== null && to !== null && !(cur >= from && cur <= to)) return false;
-    } catch { /* ignore */ }
-    return true;
+    return isProductAvailableNow(product);
   };
 
   const loadData = async () => {

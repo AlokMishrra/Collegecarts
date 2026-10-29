@@ -7,6 +7,7 @@ import { Notification } from "@/entities/Notification";
 import { base44 } from "@/api/base44Client";
 import { notifyCartUpdate } from "@/utils/cartEvents";
 import { getProductHostelStock, getDisplayStock } from "@/utils/hostelStockHelper";
+import { isProductAvailableNow as isProductAvailableNowShared } from "@/utils/productAvailability";
 import { ArrowLeft, ShoppingCart, Plus, Minus, Star, Heart, ChevronRight } from "lucide-react";
 import ReviewSection from "../components/product/ReviewSection";
 import RecommendationEngine from "../components/shop/RecommendationEngine";
@@ -189,41 +190,13 @@ export default function ProductDetails() {
     return () => removeJsonLd("product-schema");
   }, [product, category, averageRating, reviewCount]);
 
-  const isProductAvailableNow = (product) => {
-    if (!product.available_from || !product.available_to) return true;
-    
-    try {
-      const now = new Date();
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
-      const currentTime = currentHours * 60 + currentMinutes;
-      
-      // Parse 12-hour format with AM/PM (e.g., "08:00 AM" or "11:00 PM")
-      const parseTime12Hour = (timeStr) => {
-        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-        if (!match) return null;
-        
-        let hours = parseInt(match[1], 10);
-        const minutes = parseInt(match[2], 10);
-        const period = match[3].toUpperCase();
-        
-        if (period === 'PM' && hours !== 12) hours += 12;
-        if (period === 'AM' && hours === 12) hours = 0;
-        
-        return hours * 60 + minutes;
-      };
-      
-      const fromTime = parseTime12Hour(product.available_from);
-      const toTime = parseTime12Hour(product.available_to);
-      
-      if (fromTime === null || toTime === null) return true;
-      
-      return currentTime >= fromTime && currentTime <= toTime;
-    } catch (error) {
-      console.error("Error checking product availability time:", error, product);
-      return true;
-    }
-  };
+  // Availability window now comes from src/utils/productAvailability.js, the
+  // same helper the Shop and CategoryProducts pages use. This local copy was a
+  // fourth implementation of the same check and, like the others, had no
+  // handling for an inverted (overnight) window such as 9:00 AM -> 4:37 AM:
+  // it required from <= to <= now, so such a window was never open and every
+  // product in it read as OUT OF STOCK.
+  const isProductAvailableNow = (product) => isProductAvailableNowShared(product);
 
   const getHostelStock = (product) =>
     getDisplayStock(product, user?.selected_hostel);

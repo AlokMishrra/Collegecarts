@@ -13,6 +13,7 @@ import {
   deduplicatedFetch, invalidateCache,
 } from "@/utils/shopCache";
 import { enrichProductsWithHostelStock, getDisplayStock, isProductInStock as stockIsInStock } from "@/utils/hostelStockHelper";
+import { isProductAvailableNow } from "@/utils/productAvailability";
 import LoginPrompt, {
   shouldShowWelcomePrompt,
   markWelcomePromptSeen,
@@ -420,33 +421,16 @@ export default function Shop() {
 
   const isProductInStock = useCallback((product) => {
     // Availability window check, layered on the shared per-hostel stock rule.
+    //
+    // The window check now lives in one place (src/utils/productAvailability.js).
+    // The inline copy that used to live here parsed the time differently from
+    // the canonical helper, so the two could disagree. More importantly, a
+    // window that could not be parsed used to be treated as CLOSED, which is
+    // what made every product in the catalogue read OUT OF STOCK once a bulk
+    // import had written a timestamp into available_from/available_to. An
+    // unreadable window must never hide real stock.
     const stock = stockIsInStock(product, user?.selected_hostel);
-    
-    if (product.available_from && product.available_to) {
-      try {
-        const now = new Date();
-        const cur = now.getHours() * 60 + now.getMinutes();
-        const parse = t => {
-          if (!t) return null;
-          const m12 = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
-          if (m12) {
-            let h = parseInt(m12[1], 10);
-            const min = parseInt(m12[2], 10);
-            if (m12[3].toUpperCase() === "PM" && h !== 12) h += 12;
-            if (m12[3].toUpperCase() === "AM" && h === 12) h = 0;
-            return h * 60 + min;
-          }
-          const m24 = t.match(/^(\d{1,2}):(\d{2})$/);
-          return m24 ? parseInt(m24[1], 10) * 60 + parseInt(m24[2], 10) : null;
-        };
-        const from = parse(product.available_from);
-        const to   = parse(product.available_to);
-        if (from !== null && to !== null && !(cur >= from && cur <= to)) {
-          return false;
-        }
-      } catch { /* ignore */ }
-    }
-    
+    if (!isProductAvailableNow(product)) return false;
     return stock > 0;
   }, [getHostelStock]);
 
