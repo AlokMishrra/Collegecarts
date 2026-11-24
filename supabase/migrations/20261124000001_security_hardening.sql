@@ -901,6 +901,122 @@ alter function public.employee_change_password(text, text, text) set search_path
 alter function public.employee_session_profile(text) set search_path = public, security, extensions;
 
 -- ----------------------------------------------------------------------------
+-- 29c. roles + meal subsystem policies (added after initial apply)
+-- ----------------------------------------------------------------------------
+alter table public.roles enable row level security;
+drop policy if exists "roles: auth read" on public.roles;
+drop policy if exists "roles: admin manage" on public.roles;
+create policy "roles: auth read" on public.roles for select to authenticated using (true);
+create policy "roles: admin manage" on public.roles for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_menu_items enable row level security;
+drop policy if exists "meal_menu_items: anon read" on public.meal_menu_items;
+drop policy if exists "meal_menu_items: auth read" on public.meal_menu_items;
+drop policy if exists "meal_menu_items: admin manage" on public.meal_menu_items;
+create policy "meal_menu_items: anon read" on public.meal_menu_items for select to anon using (true);
+create policy "meal_menu_items: auth read" on public.meal_menu_items for select to authenticated using (true);
+create policy "meal_menu_items: admin manage" on public.meal_menu_items for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_plans enable row level security;
+drop policy if exists "meal_plans: anon read" on public.meal_plans;
+drop policy if exists "meal_plans: auth read" on public.meal_plans;
+drop policy if exists "meal_plans: admin manage" on public.meal_plans;
+create policy "meal_plans: anon read" on public.meal_plans for select to anon using (is_active = true);
+create policy "meal_plans: auth read" on public.meal_plans for select to authenticated using (true);
+create policy "meal_plans: admin manage" on public.meal_plans for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_daily_menus enable row level security;
+drop policy if exists "meal_daily_menus: anon read" on public.meal_daily_menus;
+drop policy if exists "meal_daily_menus: auth read" on public.meal_daily_menus;
+drop policy if exists "meal_daily_menus: admin manage" on public.meal_daily_menus;
+create policy "meal_daily_menus: anon read" on public.meal_daily_menus for select to anon using (is_published = true);
+create policy "meal_daily_menus: auth read" on public.meal_daily_menus for select to authenticated using (true);
+create policy "meal_daily_menus: admin manage" on public.meal_daily_menus for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_delivery_slots enable row level security;
+drop policy if exists "meal_delivery_slots: anon read" on public.meal_delivery_slots;
+drop policy if exists "meal_delivery_slots: auth read" on public.meal_delivery_slots;
+drop policy if exists "meal_delivery_slots: admin manage" on public.meal_delivery_slots;
+create policy "meal_delivery_slots: anon read" on public.meal_delivery_slots for select to anon using (is_active = true);
+create policy "meal_delivery_slots: auth read" on public.meal_delivery_slots for select to authenticated using (true);
+create policy "meal_delivery_slots: admin manage" on public.meal_delivery_slots for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_hostel_assignments enable row level security;
+drop policy if exists "meal_hostel_assignments: anon read" on public.meal_hostel_assignments;
+drop policy if exists "meal_hostel_assignments: auth read" on public.meal_hostel_assignments;
+drop policy if exists "meal_hostel_assignments: admin manage" on public.meal_hostel_assignments;
+create policy "meal_hostel_assignments: anon read" on public.meal_hostel_assignments for select to anon using (is_active = true);
+create policy "meal_hostel_assignments: auth read" on public.meal_hostel_assignments for select to authenticated using (true);
+create policy "meal_hostel_assignments: admin manage" on public.meal_hostel_assignments for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_kitchens enable row level security;
+drop policy if exists "meal_kitchens: auth read" on public.meal_kitchens;
+drop policy if exists "meal_kitchens: admin manage" on public.meal_kitchens;
+create policy "meal_kitchens: auth read" on public.meal_kitchens for select to authenticated using (true);
+create policy "meal_kitchens: admin manage" on public.meal_kitchens for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.weekly_menu_schedule enable row level security;
+drop policy if exists "weekly_menu_schedule: auth read" on public.weekly_menu_schedule;
+drop policy if exists "weekly_menu_schedule: admin manage" on public.weekly_menu_schedule;
+create policy "weekly_menu_schedule: auth read" on public.weekly_menu_schedule for select to authenticated using (true);
+create policy "weekly_menu_schedule: admin manage" on public.weekly_menu_schedule for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_settings enable row level security;
+drop policy if exists "meal_settings: auth read" on public.meal_settings;
+drop policy if exists "meal_settings: admin manage" on public.meal_settings;
+create policy "meal_settings: auth read" on public.meal_settings for select to authenticated using (true);
+create policy "meal_settings: admin manage" on public.meal_settings for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_coupons enable row level security;
+drop policy if exists "meal_coupons: anon read" on public.meal_coupons;
+drop policy if exists "meal_coupons: auth read" on public.meal_coupons;
+drop policy if exists "meal_coupons: admin manage" on public.meal_coupons;
+create policy "meal_coupons: anon read" on public.meal_coupons for select to anon using (is_active = true);
+create policy "meal_coupons: auth read" on public.meal_coupons for select to authenticated using (true);
+create policy "meal_coupons: admin manage" on public.meal_coupons for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_orders enable row level security;
+drop policy if exists "meal_orders: owner read" on public.meal_orders;
+drop policy if exists "meal_orders: owner insert" on public.meal_orders;
+drop policy if exists "meal_orders: owner update" on public.meal_orders;
+drop policy if exists "meal_orders: admin manage" on public.meal_orders;
+create policy "meal_orders: owner read" on public.meal_orders for select to authenticated using (user_id = auth.uid());
+create policy "meal_orders: owner insert" on public.meal_orders for insert to authenticated with check (user_id = auth.uid());
+create policy "meal_orders: owner update" on public.meal_orders for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "meal_orders: admin manage" on public.meal_orders for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_subscriptions enable row level security;
+drop policy if exists "meal_subscriptions: owner read" on public.meal_subscriptions;
+drop policy if exists "meal_subscriptions: owner insert" on public.meal_subscriptions;
+drop policy if exists "meal_subscriptions: owner update" on public.meal_subscriptions;
+drop policy if exists "meal_subscriptions: admin manage" on public.meal_subscriptions;
+create policy "meal_subscriptions: owner read" on public.meal_subscriptions for select to authenticated using (user_id = auth.uid());
+create policy "meal_subscriptions: owner insert" on public.meal_subscriptions for insert to authenticated with check (user_id = auth.uid());
+create policy "meal_subscriptions: owner update" on public.meal_subscriptions for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "meal_subscriptions: admin manage" on public.meal_subscriptions for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.meal_reviews enable row level security;
+drop policy if exists "meal_reviews: anon read approved" on public.meal_reviews;
+drop policy if exists "meal_reviews: auth read" on public.meal_reviews;
+drop policy if exists "meal_reviews: owner insert" on public.meal_reviews;
+drop policy if exists "meal_reviews: admin manage" on public.meal_reviews;
+create policy "meal_reviews: anon read approved" on public.meal_reviews for select to anon using (is_approved = true);
+create policy "meal_reviews: auth read" on public.meal_reviews for select to authenticated using (is_approved = true or user_id = auth.uid() or public.is_admin());
+create policy "meal_reviews: owner insert" on public.meal_reviews for insert to authenticated with check (user_id = auth.uid());
+create policy "meal_reviews: admin manage" on public.meal_reviews for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+alter table public.employee_inventory_logs enable row level security;
+drop policy if exists "employee_inventory_logs: session or admin" on public.employee_inventory_logs;
+create policy "employee_inventory_logs: session or admin" on public.employee_inventory_logs for all to authenticated using (security.employee_session_id() is not null or public.is_admin()) with check (security.employee_session_id() is not null or public.is_admin());
+
+alter table public.employee_login_logs enable row level security;
+drop policy if exists "employee_login_logs: admin read" on public.employee_login_logs;
+create policy "employee_login_logs: admin read" on public.employee_login_logs for select to authenticated using (public.is_admin());
+
+-- grants for meal catalogue (anon read)
+grant select on public.meal_menu_items, public.meal_plans, public.meal_daily_menus, public.meal_delivery_slots, public.meal_hostel_assignments, public.meal_coupons, public.weekly_menu_schedule to anon, authenticated;
+
+-- ----------------------------------------------------------------------------
 -- 30. Security audit log: admin read only
 -- ----------------------------------------------------------------------------
 alter table security.audit_log enable row level security;
