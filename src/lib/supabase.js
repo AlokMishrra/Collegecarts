@@ -13,6 +13,19 @@ if (import.meta.env.DEV) {
   console.log('Anon Key length:', supabaseAnonKey?.length);
 }
 
+// Employee portal stores its own session token in localStorage. Attach it as a
+// custom header so RLS policies on employee_* tables can validate it
+// server-side (the portal does not use Supabase Auth).
+const employeeFetch = (url, options = {}) => {
+  const headers = new Headers(options.headers || {});
+  if (!headers.has('x-client-info')) headers.set('x-client-info', 'collegecart-web');
+  try {
+    const tok = window.localStorage.getItem('employee_session_token');
+    if (tok) headers.set('x-employee-session', tok);
+  } catch (_) { /* ignore */ }
+  return fetch(url, { ...options, headers });
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -36,6 +49,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     schema: 'public'
   },
   global: {
+    fetch: employeeFetch,
     headers: {
       'x-client-info': 'collegecart-web'
     }

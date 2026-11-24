@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
@@ -33,7 +34,7 @@ export default function BannerCarousel() {
       setBanners(filtered);
       if (filtered.length > 0) {
         filtered.forEach((b) =>
-          base44.entities.Banner.update(b.id, { view_count: (b.view_count || 0) + 1 }).catch(() => {})
+          supabase.rpc('increment_banner_view', { p_banner_id: b.id }).catch(() => {})
         );
       }
     } catch (e) {

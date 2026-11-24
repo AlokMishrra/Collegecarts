@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Timer } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
@@ -48,9 +49,7 @@ export default function PromoPopup() {
           if (!cancelled) {
             setOpen(true);
             // increment view_count fire-and-forget
-            base44.entities.PromoPopup.update(active.id, {
-              view_count: (active.view_count || 0) + 1,
-            }).catch(() => {});
+            supabase.rpc('increment_promo_popup_view', { p_popup_id: active.id }).catch(() => {});
           }
         }, 1200);
         return () => clearTimeout(t);
@@ -77,9 +76,7 @@ export default function PromoPopup() {
   const handleCTA = async () => {
     if (!popup) return;
     // track click
-    base44.entities.PromoPopup.update(popup.id, {
-      click_count: (popup.click_count || 0) + 1,
-    }).catch(() => {});
+    supabase.rpc('increment_promo_popup_click', { p_popup_id: popup.id }).catch(() => {});
     handleClose();
 
     const type = popup.cta_link_type || "internal";

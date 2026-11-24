@@ -102,28 +102,18 @@ export default function ChangePasswordModal({ open, onClose, employee, isForced 
     setLoading(true);
 
     try {
-      // Verify current password
-      const passwordMatch = await bcrypt.compare(formData.currentPassword, employee.password_hash);
-      if (!passwordMatch) {
-        toast.error('Current password is incorrect');
+      const token = localStorage.getItem('employee_session_token');
+      const { data, error: rpcError } = await supabase.rpc('employee_change_password', {
+        p_token: token,
+        p_current: formData.currentPassword,
+        p_new: formData.newPassword,
+      });
+      if (rpcError) throw rpcError;
+      if (!data || data.success !== true) {
+        toast.error((data && data.error) || 'Current password is incorrect');
         setLoading(false);
         return;
       }
-
-      // Hash new password
-      const newPasswordHash = await bcrypt.hash(formData.newPassword, 10);
-
-      // Update password in database
-      const { error: updateError } = await supabase
-        .from('employee_accounts')
-        .update({
-          password_hash: newPasswordHash,
-          must_change_password: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', employee.id);
-
-      if (updateError) throw updateError;
 
       // Log activity
       await supabase.from('employee_activity_logs').insert({

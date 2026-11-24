@@ -34,7 +34,10 @@ export const EmployeeAuthProvider = ({ children }) => {
         .select(`
           *,
           employee:employee_accounts(
-            *,
+            id, employee_code, slug, full_name, photo, phone, email, role_id, department_id,
+            campus_id, hostel_id, salary_structure_id, joining_date, date_of_birth, gender,
+            blood_group, address, emergency_contact, emergency_phone, employee_badge_url,
+            qr_code, status, must_change_password, created_by, created_at, updated_at,
             role:employee_roles(*),
             department:employee_departments(*)
           )
@@ -80,96 +83,55 @@ export const EmployeeAuthProvider = ({ children }) => {
 
   const login = async (emailOrPhone, password, rememberDevice = false) => {
     try {
-      // Find employee by email or phone
-      let query = supabase
-        .from('employee_accounts')
-        .select(`
-          *,
-          role:employee_roles(*),
-          department:employee_departments(*)
-        `)
-        .eq('status', 'active');
+      const { data, error } = await supabase.rpc('employee_login', {
+        p_identifier: emailOrPhone,
+        p_password: password,
+        p_remember: rememberDevice,
+      });
 
-      if (emailOrPhone.includes('@')) {
-        query = query.eq('email', emailOrPhone);
-      } else if (/^\d{10}$/.test(emailOrPhone)) {
-        query = query.eq('phone', emailOrPhone);
-      } else {
-        query = query.eq('employee_code', emailOrPhone);
-      }
-
-      const { data: employeeData, error: employeeError } = await query.single();
-
-      if (employeeError) {
-        console.error('Employee query error:', employeeError);
+      if (error) {
+        console.error('Employee login RPC error:', error);
         throw new Error('Invalid credentials');
       }
-
-      if (!employeeData) {
-        throw new Error('Invalid credentials');
+      if (!data || data.success !== true) {
+        throw new Error((data && data.error) || 'Invalid credentials');
       }
 
-      // Verify password
-      // Loaded on demand: bcryptjs is only needed once, at login, and this
-      // module is part of the eager app shell.
-      const { default: bcrypt } = await import('bcryptjs');
-      const passwordMatch = await bcrypt.compare(password, employeeData.password_hash);
-      if (!passwordMatch) {
-        throw new Error('Invalid credentials');
-      }
+      const sessionToken = data.session_token;
+      const employeeData = data.employee;
 
       // Ensure employee has slug (generate if missing)
       if (!employeeData.slug) {
         const generatedSlug = generateSlug(employeeData.full_name, employeeData.employee_code);
         employeeData.slug = generatedSlug;
-        
-        // Update database with generated slug
         await supabase
           .from('employee_accounts')
           .update({ slug: generatedSlug })
           .eq('id', employeeData.id);
       }
 
-      // Create session
-      const sessionToken = generateSessionToken();
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + (rememberDevice ? 720 : 24)); // 30 days or 24 hours
+      // Store session token FIRST so subsequent calls carry the header
+      localStorage.setItem('employee_session_token', sessionToken);
 
-      const deviceInfo = {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language,
-        rememberDevice
+      // Build a session object compatible with the rest of the context
+      const sessionData = {
+        id: null,
+        employee_id: employeeData.id,
+        session_token: sessionToken,
+        is_active: true,
+        expires_at: new Date(Date.now() + (rememberDevice ? 30 : 1) * 24 * 60 * 60 * 1000).toISOString(),
       };
 
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('employee_sessions')
-        .insert({
-          employee_id: employeeData.id,
-          session_token: sessionToken,
-          device_info: deviceInfo,
-          ip_address: await getClientIP(),
-          user_agent: navigator.userAgent,
-          expires_at: expiresAt.toISOString()
-        })
-        .select()
-        .single();
-
-      if (sessionError) throw sessionError;
-
-      // Log activity
-      await logActivity(employeeData.id, 'login', 'Employee logged in successfully');
-
-      // Store session token
-      localStorage.setItem('employee_session_token', sessionToken);
+      // Log activity (now that the header is present)
+      try { await logActivity(employeeData.id, 'login', 'Employee logged in successfully'); } catch (_) {}
 
       setEmployee(employeeData);
       setSession(sessionData);
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         employee: employeeData,
-        mustChangePassword: employeeData.must_change_password === true || false
+        mustChangePassword: data.must_change_password === true || employeeData.must_change_password === true,
       };
     } catch (error) {
       console.error('Login error:', error);
@@ -180,17 +142,9 @@ export const EmployeeAuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       const sessionToken = localStorage.getItem('employee_session_token');
-      if (sessionToken && employee) {
-        // Deactivate session
-        await supabase
-          .from('employee_sessions')
-          .update({ is_active: false })
-          .eq('session_token', sessionToken);
-
-        // Log activity
-        await logActivity(employee.id, 'logout', 'Employee logged out');
+      if (sessionToken) {
+        try { await supabase.rpc('employee_logout', { p_token: sessionToken }); } catch (_) {}
       }
-
       localStorage.removeItem('employee_session_token');
       setEmployee(null);
       setSession(null);
