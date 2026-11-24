@@ -901,6 +901,31 @@ alter function public.employee_change_password(text, text, text) set search_path
 alter function public.employee_session_profile(text) set search_path = public, security, extensions;
 
 -- ----------------------------------------------------------------------------
+-- 29b1. Table grants restored for admin + delivery portal (fix 403s)
+-- ----------------------------------------------------------------------------
+grant select, insert, update, delete on public.wallet_transactions,
+  public.withdrawal_requests, public.refunds, public.subscriptions,
+  public.loyalty_transactions, public.delivery_queries,
+  public.admin_activity_log, public.audit_logs to authenticated;
+
+drop policy if exists "wallet: admin manage" on public.wallet_transactions;
+create policy "wallet: admin manage" on public.wallet_transactions for all to authenticated using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "loyalty: admin manage" on public.loyalty_transactions;
+create policy "loyalty: admin manage" on public.loyalty_transactions for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+grant select, update on public.orders to anon;
+grant select, insert, update on public.notifications to anon;
+grant select on public.wallet_transactions to anon;
+grant select, insert, update, delete on public.delivery_persons to anon, authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 29b2. pgcrypto search_path for delivery partner RPCs
+-- ----------------------------------------------------------------------------
+alter function public.delivery_partner_login(text, text, boolean) set search_path = public, security, extensions;
+alter function public.delivery_partner_session_profile(text) set search_path = public, security, extensions;
+alter function public.delivery_partner_logout(text) set search_path = public, security, extensions;
+
+-- ----------------------------------------------------------------------------
 -- 29c. roles + meal subsystem policies (added after initial apply)
 -- ----------------------------------------------------------------------------
 alter table public.roles enable row level security;
