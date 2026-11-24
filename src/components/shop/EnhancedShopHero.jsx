@@ -3,13 +3,13 @@ import { ChevronDown } from "lucide-react";
 
 /**
  * ShopHero — Zepto-style header.
- * Blue time badge + "Delivery to {hostel}" + dropdown to change hostel.
+ * Brand (emerald) time badge + "Delivery to {hostel}" + dropdown to change hostel.
  */
 export default function EnhancedShopHero({ hostelName, onChangeHostel }) {
   return (
     <div className="flex items-center gap-2.5 px-0.5 py-1">
       {/* Time badge */}
-      <div className="w-[52px] h-[52px] rounded-xl bg-[#2563eb] flex flex-col items-center justify-center flex-shrink-0 leading-none">
+      <div className="w-[52px] h-[52px] rounded-xl bg-emerald-600 flex flex-col items-center justify-center flex-shrink-0 leading-none">
         <span className="text-white text-[19px] font-extrabold tracking-tight">10</span>
         <span className="text-white text-[10px] font-bold tracking-wide">MINS</span>
       </div>
