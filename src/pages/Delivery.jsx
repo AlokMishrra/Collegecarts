@@ -84,25 +84,28 @@ export default function Delivery() {
     setLoginError('');
     
     try {
-      // Find delivery person by email and password
-      const all = await base44.entities.DeliveryPerson.list().catch(() => []);
-      const found = all.find(p => 
-        p.email?.toLowerCase().trim() === loginEmail.toLowerCase().trim() &&
-        p.password === loginPassword
-      );
-      
-      if (!found) {
-        setLoginError('Invalid email or password');
+      // Server-side login (password never leaves the server)
+      const { data, error } = await supabase.rpc('delivery_partner_login', {
+        p_email: loginEmail.trim(),
+        p_password: loginPassword,
+        p_remember: true,
+      });
+
+      if (error || !data || data.success !== true) {
+        setLoginError((data && data.error) || 'Invalid email or password');
         setIsLoggingIn(false);
         return;
       }
-      
+
+      const found = data.partner;
       if (found.is_blocked) {
         setLoginError('Account blocked. Contact admin.');
         setIsLoggingIn(false);
         return;
       }
-      
+
+      // Store session token + profile
+      localStorage.setItem('deliverySessionToken', data.session_token);
       localStorage.setItem('deliveryPerson', JSON.stringify(found));
       setDeliveryPerson(found);
       await loadOrders(found.id, found);
@@ -379,6 +382,9 @@ export default function Delivery() {
   }, [deliveryPerson, checkCODAutoOffline, refreshDeliveryPersonFromDB]);
 
   const handleLogout = () => {
+    const tok = localStorage.getItem('deliverySessionToken');
+    if (tok) { try { supabase.rpc('delivery_partner_logout', { p_token: tok }); } catch (_) {} }
+    localStorage.removeItem('deliverySessionToken');
     localStorage.removeItem('deliveryPerson');
     setDeliveryPerson(null);
     setAssignedOrders([]);

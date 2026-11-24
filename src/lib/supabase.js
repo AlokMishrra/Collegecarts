@@ -22,6 +22,8 @@ const employeeFetch = (url, options = {}) => {
   try {
     const tok = window.localStorage.getItem('employee_session_token');
     if (tok) headers.set('x-employee-session', tok);
+    const dtok = window.localStorage.getItem('deliverySessionToken');
+    if (dtok) headers.set('x-delivery-session', dtok);
   } catch (_) { /* ignore */ }
   return fetch(url, { ...options, headers });
 };
