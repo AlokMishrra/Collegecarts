@@ -688,16 +688,11 @@ export default function Cart() {
       const hostelToCheck = selectedHostel === "Other" ? null : selectedHostel;
       let hasPartner = false;
 
-      if (hostelToCheck) {
-        const partners = await DeliveryPerson.filter({
-          is_available: true,
-          assigned_hostel: hostelToCheck
-        }).catch(() => []);
-        hasPartner = partners && partners.length > 0;
-      } else {
-        const partners = await DeliveryPerson.filter({ is_available: true }).catch(() => []);
-        hasPartner = partners && partners.length > 0;
-      }
+      const { data: allPartners } = await supabase.rpc('get_delivery_partners_for_checkout', {
+        p_hostel: hostelToCheck
+      });
+      const partners = (allPartners || []).filter(p => p.is_available);
+      hasPartner = partners.length > 0;
 
       if (!hasPartner) {
         await warning(
@@ -1087,32 +1082,21 @@ export default function Cart() {
         try {
           const hostelToCheck = selectedHostel === "Other" ? null : selectedHostel;
           
-          if (hostelToCheck) {
-            const activePartners = await DeliveryPerson.filter({ 
-              is_available: true,
-              assigned_hostel: hostelToCheck 
-            });
-            
-            if (!activePartners || activePartners.length === 0) {
-              await warning(
-                `No delivery partners are currently available for ${hostelToCheck} hostel. Please try again in a few minutes or contact support.`,
-                "No Delivery Partners Available"
-              );
-              setIsPlacingOrder(false);
-              toast.dismiss(loadingToast);
-              return;
-            }
-          } else {
-            const activePartners = await DeliveryPerson.filter({ is_available: true });
-            if (!activePartners || activePartners.length === 0) {
-              await warning(
-                "No delivery partners are currently available. Please try again in a few minutes or contact support.",
-                "No Delivery Partners Available"
-              );
-              setIsPlacingOrder(false);
-              toast.dismiss(loadingToast);
-              return;
-            }
+          const { data: partnerRows } = await supabase.rpc('get_delivery_partners_for_checkout', {
+            p_hostel: hostelToCheck
+          });
+          const activePartners = (partnerRows || []).filter(p => p.is_available);
+
+          if (activePartners.length === 0) {
+            await warning(
+              hostelToCheck
+                ? `No delivery partners are currently available for ${hostelToCheck} hostel. Please try again in a few minutes or contact support.`
+                : "No delivery partners are currently available. Please try again in a few minutes or contact support.",
+              "No Delivery Partners Available"
+            );
+            setIsPlacingOrder(false);
+            toast.dismiss(loadingToast);
+            return;
           }
         } catch (e) {
           // Silently fail delivery check
@@ -1312,10 +1296,10 @@ export default function Cart() {
                 discount_amount: calculateCampaignDiscount(),
                 order_amount: finalAmount
               }),
-              base44.entities.Campaign.update(appliedCampaign.id, {
-                usage_count: (appliedCampaign.usage_count || 0) + 1,
-                total_revenue: (appliedCampaign.total_revenue || 0) + finalAmount,
-                total_discount_given: (appliedCampaign.total_discount_given || 0) + calculateCampaignDiscount()
+              supabase.rpc('increment_campaign_usage', {
+                p_campaign_id: appliedCampaign.id,
+                p_revenue: finalAmount,
+                p_discount: calculateCampaignDiscount()
               })
             ]) : Promise.resolve()
           ]);
@@ -1353,9 +1337,9 @@ export default function Cart() {
           });
 
           // Notify delivery persons (non-blocking)
-          DeliveryPerson.list().then(allDeliveryPersons => {
+          supabase.rpc('get_delivery_partners_for_checkout', { p_hostel: null }).then(({ data: allDeliveryPersons }) => {
             Promise.all(
-              allDeliveryPersons.map(person => 
+              (allDeliveryPersons || []).map(person => 
                 Notification.create({
                   user_id: person.email,
                   title: "New Order Available!",
